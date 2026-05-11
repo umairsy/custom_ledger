@@ -1,0 +1,285 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:LDG-ENT-{YYYY}-{######}",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_link",
+  "ledger_config",
+  "source_doctype",
+  "column_break_link",
+  "source_name",
+  "section_posting",
+  "posting_date",
+  "posting_time",
+  "column_break_posting",
+  "posting_datetime",
+  "section_value",
+  "value",
+  "delta",
+  "column_break_value",
+  "balance",
+  "section_dimensions",
+  "dim_1",
+  "dim_1_doctype",
+  "dim_2",
+  "dim_2_doctype",
+  "dim_3",
+  "dim_3_doctype",
+  "column_break_dim",
+  "dim_4",
+  "dim_4_doctype",
+  "dim_5",
+  "dim_5_doctype",
+  "section_internal",
+  "change_signature",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_link",
+   "fieldtype": "Section Break",
+   "label": "Source"
+  },
+  {
+   "fieldname": "ledger_config",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Ledger Config",
+   "options": "Ledger Config",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "label": "Source DocType",
+   "options": "DocType",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_link",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source Document",
+   "options": "source_doctype",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_posting",
+   "fieldtype": "Section Break",
+   "label": "Posting"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Posting Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "posting_time",
+   "fieldtype": "Time",
+   "label": "Posting Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_posting",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posting_datetime",
+   "fieldtype": "Datetime",
+   "label": "Posting Datetime",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1,
+   "description": "Computed from posting_date + posting_time. Used as the canonical ordering key."
+  },
+  {
+   "fieldname": "section_value",
+   "fieldtype": "Section Break",
+   "label": "Value"
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Value",
+   "precision": "6",
+   "reqd": 1,
+   "description": "The tracked field's value at posting_datetime."
+  },
+  {
+   "fieldname": "delta",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Delta",
+   "precision": "6",
+   "description": "Change vs the prior entry for this source/config slice. Computed by the engine."
+  },
+  {
+   "fieldname": "column_break_value",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "balance",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Running Balance",
+   "precision": "6",
+   "read_only": 1,
+   "description": "Running balance for this source/config slice. Recomputed by reposting."
+  },
+  {
+   "fieldname": "section_dimensions",
+   "fieldtype": "Section Break",
+   "label": "Dimensions",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "dim_1",
+   "fieldtype": "Dynamic Link",
+   "label": "Dimension 1",
+   "options": "dim_1_doctype",
+   "search_index": 1
+  },
+  {
+   "fieldname": "dim_1_doctype",
+   "fieldtype": "Link",
+   "label": "Dim 1 DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dim_2",
+   "fieldtype": "Dynamic Link",
+   "label": "Dimension 2",
+   "options": "dim_2_doctype",
+   "search_index": 1
+  },
+  {
+   "fieldname": "dim_2_doctype",
+   "fieldtype": "Link",
+   "label": "Dim 2 DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dim_3",
+   "fieldtype": "Dynamic Link",
+   "label": "Dimension 3",
+   "options": "dim_3_doctype",
+   "search_index": 1
+  },
+  {
+   "fieldname": "dim_3_doctype",
+   "fieldtype": "Link",
+   "label": "Dim 3 DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_dim",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dim_4",
+   "fieldtype": "Dynamic Link",
+   "label": "Dimension 4",
+   "options": "dim_4_doctype",
+   "search_index": 1
+  },
+  {
+   "fieldname": "dim_4_doctype",
+   "fieldtype": "Link",
+   "label": "Dim 4 DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dim_5",
+   "fieldtype": "Dynamic Link",
+   "label": "Dimension 5",
+   "options": "dim_5_doctype",
+   "search_index": 1
+  },
+  {
+   "fieldname": "dim_5_doctype",
+   "fieldtype": "Link",
+   "label": "Dim 5 DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_internal",
+   "fieldtype": "Section Break",
+   "label": "Internal",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "change_signature",
+   "fieldtype": "Data",
+   "label": "Change Signature",
+   "read_only": 1,
+   "description": "Hash of (source_name, posting_datetime, value) used by the engine to detect duplicates during reposting."
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Ledger Entry",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ledgerly",
+ "name": "Ledger Entry",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 0,
+   "cancel": 1,
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Sales User"
+  }
+ ],
+ "sort_field": "posting_datetime",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
