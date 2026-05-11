@@ -20,14 +20,22 @@ app_license = "TBD"
 
 # Document Events
 # ---------------
-# Will be wired up in PR #5 (ledger engine).
-# doc_events = {
-#     "*": {
-#         "on_update": "ledgerly.core.ledger_engine.capture_change",
-#         "on_submit": "ledgerly.core.ledger_engine.capture_change",
-#         "on_cancel": "ledgerly.core.ledger_engine.handle_cancel",
-#     }
-# }
+# The wildcard "*" entry fires on every doc save in the system. The engine's
+# first action is a cached lookup that returns immediately for DocTypes with
+# no Ledger Config — so the per-save overhead is a single Redis hit.
+#
+# Ledger Config events keep the cache fresh: when a config is saved or deleted,
+# we invalidate the cached active-config list for its source_doctype.
+doc_events = {
+    "*": {
+        "on_update": "ledgerly.core.ledger_engine.capture_change",
+        "on_submit": "ledgerly.core.ledger_engine.capture_change",
+    },
+    "Ledger Config": {
+        "on_update": "ledgerly.core.ledger_engine.invalidate_config_cache",
+        "on_trash": "ledgerly.core.ledger_engine.invalidate_config_cache",
+    },
+}
 
 # Scheduled Tasks
 # ---------------
