@@ -296,8 +296,12 @@ class LedgerConfig(Document):
 
         date_dt = get_datetime(date_value)
 
-        # If the configured date field is a pure Date and a separate time
-        # field is set, combine them. Otherwise time defaults to 00:00:00.
+        # Contract: posting_datetime is NEVER returned with a null time component.
+        # get_datetime() on a pure date yields 00:00:00, which is what we want
+        # as the safe default. If a separate posting_time_field is configured
+        # AND has a value, we overlay it. If the time field exists but is empty
+        # on this particular source doc, we keep 00:00:00 rather than failing —
+        # an empty time is a reasonable user signal for "midnight" semantics.
         if self.posting_time_field:
             time_value = source_doc.get(self.posting_time_field)
             if time_value:
@@ -310,7 +314,8 @@ class LedgerConfig(Document):
                     microsecond=0,
                 )
 
-        return date_dt
+        # Defensive: zero out microseconds for stable equality comparisons.
+        return date_dt.replace(microsecond=0)
 
 
 # ------------------------------------------------------------------
@@ -403,3 +408,30 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
         "posting_date_fields": posting_date_fields,
         "posting_time_fields": posting_time_fields,
     }
+
+
+@frappe.whitelist()
+def get_field_type(source_doctype: str, fieldname: str) -> str | None:
+    """Return the fieldtype of a single field on the given DocType.
+
+    Used by the Ledger Config client script to decide whether to hide the
+    ``posting_time_field`` (which is redundant if the picked date field is
+    a Datetime).
+
+    Args:
+        source_doctype: DocType to inspect.
+        fieldname: Field on that DocType.
+
+    Returns:
+        The fieldtype string (e.g. ``"Date"``, ``"Datetime"``), or ``None``
+        if the field or DocType doesn't exist.
+    """
+    if not frappe.has_permission("DocType", "read", source_doctype):
+        frappe.throw(_("Insufficient permissions to read DocType '{0}'.").format(source_doctype))
+
+    if not frappe.db.exists("DocType", source_doctype):
+        return None
+
+    meta = frappe.get_meta(source_doctype)
+    df = meta.get_field(fieldname)
+    return df.fieldtype if df else None

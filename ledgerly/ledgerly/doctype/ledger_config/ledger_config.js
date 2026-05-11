@@ -6,6 +6,13 @@ frappe.ui.form.on("Ledger Config", {
         if (frm.doc.source_doctype) {
             ledgerly.fetch_field_options(frm);
         }
+        // Re-run posting_date_field handler so the time field is hidden when
+        // reopening a Ledger Config that uses a Datetime posting field.
+        if (frm.doc.posting_date_field) {
+            frm.trigger("posting_date_field");
+        } else {
+            frm.toggle_display("posting_time_field", false);
+        }
     },
 
     source_doctype: function (frm) {
@@ -46,7 +53,38 @@ frappe.ui.form.on("Ledger Config", {
         if (frm.doc.posting_date_source === "Document modification time") {
             frm.set_value("posting_date_field", null);
             frm.set_value("posting_time_field", null);
+            frm.toggle_display("posting_time_field", false);
         }
+    },
+
+    posting_date_field: function (frm) {
+        // When the picked date field is a Datetime, the separate posting_time_field
+        // is redundant. Hide it AND clear any value so it can't be saved by mistake.
+        if (!frm.doc.posting_date_field || !frm.doc.source_doctype) {
+            frm.toggle_display("posting_time_field", false);
+            return;
+        }
+
+        frappe.call({
+            method: "ledgerly.ledgerly.doctype.ledger_config.ledger_config.get_field_type",
+            args: {
+                source_doctype: frm.doc.source_doctype,
+                fieldname: frm.doc.posting_date_field,
+            },
+            callback: function (r) {
+                const fieldtype = r.message;
+                if (fieldtype === "Datetime") {
+                    // Hide and clear — see PR #4.5 design note.
+                    if (frm.doc.posting_time_field) {
+                        frm.set_value("posting_time_field", null);
+                    }
+                    frm.toggle_display("posting_time_field", false);
+                } else {
+                    // Date — show the time field so the user can optionally pair it.
+                    frm.toggle_display("posting_time_field", true);
+                }
+            },
+        });
     },
 });
 
