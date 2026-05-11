@@ -13,9 +13,15 @@
   "track_balance",
   "section_source",
   "source_doctype",
+  "value_source_mode",
   "child_table_field",
   "column_break_source",
   "tracked_field",
+  "section_posting",
+  "posting_date_source",
+  "posting_date_field",
+  "column_break_posting",
+  "posting_time_field",
   "section_dimensions",
   "dimensions",
   "section_description",
@@ -50,6 +56,7 @@
    "label": "Track Running Balance",
    "description": "If unchecked, entries are created but no running balance is maintained."
   },
+
   {
    "fieldname": "section_source",
    "fieldtype": "Section Break",
@@ -65,10 +72,21 @@
    "description": "The DocType whose field changes drive ledger entries."
   },
   {
+   "default": "Field on document",
+   "fieldname": "value_source_mode",
+   "fieldtype": "Select",
+   "label": "Track Value From",
+   "options": "Field on document\nSum across child rows",
+   "reqd": 1,
+   "description": "Most ledgers track a single field on the document. Pick 'Sum across child rows' only if the value is computed across a child table (e.g. total weight across line items)."
+  },
+  {
+   "depends_on": "eval:doc.value_source_mode == 'Sum across child rows'",
+   "mandatory_depends_on": "eval:doc.value_source_mode == 'Sum across child rows'",
    "fieldname": "child_table_field",
    "fieldtype": "Select",
    "label": "Child Table Field",
-   "description": "Optional: if the tracked field lives on a child table, pick the child-table fieldname here. The tracked field will then be summed across rows."
+   "description": "Pick the child table whose rows will be summed."
   },
   {
    "fieldname": "column_break_source",
@@ -82,6 +100,41 @@
    "reqd": 1,
    "description": "The numeric field whose changes are logged. Must be Currency, Int, or Float."
   },
+
+  {
+   "fieldname": "section_posting",
+   "fieldtype": "Section Break",
+   "label": "Posting Date & Time",
+   "description": "How should Ledgerly determine when each ledger entry was effective?"
+  },
+  {
+   "fieldname": "posting_date_source",
+   "fieldtype": "Select",
+   "label": "Posting Date Source",
+   "options": "\nDocument modification time\nField on source DocType",
+   "reqd": 1,
+   "description": "Pick where the posting datetime comes from. Use 'Document modification time' for masters that don't need retroactive dating. Use 'Field on source DocType' when the user-controlled measurement / transaction date matters (e.g. goat_weight_date, posting_date on a transaction)."
+  },
+  {
+   "depends_on": "eval:doc.posting_date_source == 'Field on source DocType'",
+   "mandatory_depends_on": "eval:doc.posting_date_source == 'Field on source DocType'",
+   "fieldname": "posting_date_field",
+   "fieldtype": "Select",
+   "label": "Posting Date Field",
+   "description": "A Date or Datetime field on the source DocType."
+  },
+  {
+   "fieldname": "column_break_posting",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.posting_date_source == 'Field on source DocType' && doc.posting_date_field",
+   "fieldname": "posting_time_field",
+   "fieldtype": "Select",
+   "label": "Posting Time Field",
+   "description": "Optional: a Time field on the source DocType. Only useful when 'Posting Date Field' is a Date (not Datetime). If blank, time defaults to 00:00:00."
+  },
+
   {
    "fieldname": "section_dimensions",
    "fieldtype": "Section Break",
@@ -94,6 +147,7 @@
    "options": "Ledger Dimension",
    "description": "Link fields on the source DocType to use as reporting dimensions."
   },
+
   {
    "collapsible": 1,
    "fieldname": "section_description",

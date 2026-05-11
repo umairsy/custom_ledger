@@ -3,17 +3,17 @@
 
 frappe.ui.form.on("Ledger Config", {
     refresh: function (frm) {
-        // Re-populate dropdowns whenever the form loads, in case the source has
-        // changed (e.g. custom fields added to the source DocType since last save).
         if (frm.doc.source_doctype) {
             ledgerly.fetch_field_options(frm);
         }
     },
 
     source_doctype: function (frm) {
-        // Clear dependent fields when source changes — they'd be stale otherwise.
+        // Clear all dependent fields when source changes.
         frm.set_value("tracked_field", null);
         frm.set_value("child_table_field", null);
+        frm.set_value("posting_date_field", null);
+        frm.set_value("posting_time_field", null);
         frm.clear_table("dimensions");
         frm.refresh_field("dimensions");
 
@@ -22,11 +22,30 @@ frappe.ui.form.on("Ledger Config", {
         }
     },
 
+    value_source_mode: function (frm) {
+        // Switching modes invalidates the current tracked_field choice.
+        frm.set_value("tracked_field", null);
+        if (frm.doc.value_source_mode === "Field on document") {
+            frm.set_value("child_table_field", null);
+        }
+        if (frm.doc.source_doctype) {
+            ledgerly.fetch_field_options(frm);
+        }
+    },
+
     child_table_field: function (frm) {
-        // Tracked field candidates depend on whether a child table is picked.
+        // Tracked field candidates depend on the child table choice.
         frm.set_value("tracked_field", null);
         if (frm.doc.source_doctype) {
             ledgerly.fetch_field_options(frm);
+        }
+    },
+
+    posting_date_source: function (frm) {
+        // Clear field selections if user switches back to modification time.
+        if (frm.doc.posting_date_source === "Document modification time") {
+            frm.set_value("posting_date_field", null);
+            frm.set_value("posting_time_field", null);
         }
     },
 });
@@ -39,22 +58,30 @@ ledgerly.fetch_field_options = function (frm) {
         method: "ledgerly.ledgerly.doctype.ledger_config.ledger_config.get_field_options",
         args: {
             source_doctype: frm.doc.source_doctype,
-            child_table_field: frm.doc.child_table_field || null,
+            child_table_field:
+                frm.doc.value_source_mode === "Sum across child rows"
+                    ? frm.doc.child_table_field || null
+                    : null,
         },
         callback: function (r) {
             if (!r.message) {
                 return;
             }
 
-            // Populate tracked_field select.
-            const tracked_options = ["", ...r.message.tracked_fields.map((f) => f.value)];
-            frm.set_df_property("tracked_field", "options", tracked_options.join("\n"));
+            const set_select = (fieldname, values) => {
+                const options = ["", ...values.map((f) => f.value)];
+                frm.set_df_property(fieldname, "options", options.join("\n"));
+                frm.refresh_field(fieldname);
+            };
 
-            // Populate child_table_field select.
-            const child_options = ["", ...r.message.child_table_fields.map((f) => f.value)];
-            frm.set_df_property("child_table_field", "options", child_options.join("\n"));
+            set_select("tracked_field", r.message.tracked_fields);
+            set_select("child_table_field", r.message.child_table_fields);
+            set_select("posting_date_field", r.message.posting_date_fields);
+            set_select("posting_time_field", r.message.posting_time_fields);
 
-            // Populate dimension fieldname select inside the grid.
+            // Dimensions grid: dimension_fieldname is a Data field in the
+            // child schema, but we treat it as a Select at the UI level
+            // by overriding the docfield property in the grid.
             const dim_options = ["", ...r.message.dimension_fields.map((f) => f.value)];
             const grid = frm.fields_dict.dimensions.grid;
             if (grid) {
@@ -66,10 +93,6 @@ ledgerly.fetch_field_options = function (frm) {
                 );
                 grid.refresh();
             }
-
-            // Refresh visible selects so the new options take effect immediately.
-            frm.refresh_field("tracked_field");
-            frm.refresh_field("child_table_field");
             frm.refresh_field("dimensions");
         },
     });
