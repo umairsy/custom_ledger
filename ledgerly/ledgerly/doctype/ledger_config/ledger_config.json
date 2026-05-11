@@ -1,0 +1,141 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:LDG-CFG-{#####}",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "ledger_name",
+  "is_active",
+  "column_break_header",
+  "track_balance",
+  "section_source",
+  "source_doctype",
+  "child_table_field",
+  "column_break_source",
+  "tracked_field",
+  "section_dimensions",
+  "dimensions",
+  "section_description",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "ledger_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Ledger Name",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Human-readable name, e.g. 'Goat Weight Ledger'."
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active",
+   "description": "When unchecked, this configuration will not create ledger entries."
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "track_balance",
+   "fieldtype": "Check",
+   "label": "Track Running Balance",
+   "description": "If unchecked, entries are created but no running balance is maintained."
+  },
+  {
+   "fieldname": "section_source",
+   "fieldtype": "Section Break",
+   "label": "Source"
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Source DocType",
+   "options": "DocType",
+   "reqd": 1,
+   "description": "The DocType whose field changes drive ledger entries."
+  },
+  {
+   "fieldname": "child_table_field",
+   "fieldtype": "Select",
+   "label": "Child Table Field",
+   "description": "Optional: if the tracked field lives on a child table, pick the child-table fieldname here. The tracked field will then be summed across rows."
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tracked_field",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Tracked Field",
+   "reqd": 1,
+   "description": "The numeric field whose changes are logged. Must be Currency, Int, or Float."
+  },
+  {
+   "fieldname": "section_dimensions",
+   "fieldtype": "Section Break",
+   "label": "Dimensions"
+  },
+  {
+   "fieldname": "dimensions",
+   "fieldtype": "Table",
+   "label": "Dimensions",
+   "options": "Ledger Dimension",
+   "description": "Link fields on the source DocType to use as reporting dimensions."
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_description",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ledgerly",
+ "name": "Ledger Config",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Sales User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "title_field": "ledger_name"
+}
