@@ -1,0 +1,30 @@
+[project]
+name = "ledgerly"
+authors = [
+    { name = "Ledgerly Contributors", email = "ledgerly@example.com"}
+]
+description = "Configurable custom ledgers for Frappe — define your own ledgers driven by field changes on any DocType."
+requires-python = ">=3.10,<3.13"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    # "frappe~=15.0.0" # Installed and managed by bench.
+]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "ledgerly"
+
+# These dependencies are only required for development and CI;
+# they are not installed on Frappe Cloud production benches.
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+# Frappe Cloud honours this block — declare APT packages here if ever needed.
+# [deploy.dependencies.apt]
+# packages = []
