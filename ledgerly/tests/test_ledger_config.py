@@ -7,7 +7,10 @@ from datetime import datetime
 import frappe
 from frappe.utils import get_datetime
 
-from ledgerly.ledgerly.doctype.ledger_config.ledger_config import get_field_options
+from ledgerly.ledgerly.doctype.ledger_config.ledger_config import (
+    get_field_options,
+    get_field_type,
+)
 
 FIXTURE_DOCTYPE = "Ledgerly Test Source"
 FIXTURE_CHILD_DOCTYPE = "Ledgerly Test Source Line"
@@ -464,3 +467,76 @@ class TestLedgerConfig(unittest.TestCase):
 
         time_names = {f["value"] for f in result["posting_time_fields"]}
         self.assertIn("measurement_time", time_names)
+
+    # ------------------------------------------------------------------
+    # get_field_type helper (NEW IN PR #4.5)
+    # ------------------------------------------------------------------
+
+    def test_get_field_type_returns_datetime(self):
+        self.assertEqual(
+            get_field_type(source_doctype=FIXTURE_DOCTYPE, fieldname="measurement_datetime"),
+            "Datetime",
+        )
+
+    def test_get_field_type_returns_date(self):
+        self.assertEqual(
+            get_field_type(source_doctype=FIXTURE_DOCTYPE, fieldname="measurement_date"),
+            "Date",
+        )
+
+    def test_get_field_type_returns_none_for_missing_field(self):
+        self.assertIsNone(
+            get_field_type(source_doctype=FIXTURE_DOCTYPE, fieldname="does_not_exist_xyz")
+        )
+
+    def test_get_field_type_returns_none_for_missing_doctype(self):
+        self.assertIsNone(
+            get_field_type(source_doctype="NonExistent XYZ", fieldname="anything")
+        )
+
+    # ------------------------------------------------------------------
+    # Time-fallback contract (NEW IN PR #4.5)
+    # ------------------------------------------------------------------
+
+    def test_resolve_posting_datetime_zero_microseconds(self):
+        """posting_datetime must always have microsecond=0 for stable equality."""
+        config = frappe.get_doc(
+            {
+                **_base_config("Test Microsec Zero"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_datetime",
+            }
+        )
+        config.insert()
+
+        # Datetime with non-zero microseconds — should be stripped.
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE,
+            name="FAKE-MS",
+            measurement_datetime="2026-04-28 14:00:00.123456",
+        )
+        result = config.resolve_posting_datetime(fake_doc)
+        self.assertEqual(result.microsecond, 0)
+
+    def test_resolve_posting_datetime_empty_time_falls_back_to_midnight(self):
+        """If posting_time_field is configured but empty on the source, use 00:00:00."""
+        config = frappe.get_doc(
+            {
+                **_base_config("Test Empty Time Fallback"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+                "posting_time_field": "measurement_time",
+            }
+        )
+        config.insert()
+
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE,
+            name="FAKE-EMPTY-TIME",
+            measurement_date="2026-05-01",
+            measurement_time=None,  # Empty time on the source doc
+        )
+        result = config.resolve_posting_datetime(fake_doc)
+        self.assertEqual(result.hour, 0)
+        self.assertEqual(result.minute, 0)
+        self.assertEqual(result.second, 0)
