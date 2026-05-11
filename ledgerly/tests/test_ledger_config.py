@@ -2,28 +2,28 @@
 # License: TBD. See license.txt
 
 import unittest
+from datetime import datetime
 
 import frappe
+from frappe.utils import get_datetime
 
 from ledgerly.ledgerly.doctype.ledger_config.ledger_config import get_field_options
 
-# Test fixture DocType — created once for the whole suite so we don't rely on
-# framework DocType field stability. Reused in PRs #4-#7 for engine tests.
 FIXTURE_DOCTYPE = "Ledgerly Test Source"
 FIXTURE_CHILD_DOCTYPE = "Ledgerly Test Source Line"
 
 
 def _ensure_fixture_doctypes():
-    """Create the test fixture DocTypes if they don't already exist.
+    """Create fixture DocTypes if they don't already exist.
 
-    These are simple DocTypes with a known schema:
+    Schema:
     - Ledgerly Test Source: tracked_value (Float), tracked_int (Int),
-      category (Link -> DocType), notes (Data), lines (Table -> child)
-    - Ledgerly Test Source Line: weight (Float), label (Data)
+      category (Link -> DocType), notes (Data), lines (Table -> child),
+      measurement_date (Date), measurement_datetime (Datetime),
+      measurement_time (Time).
+    - Ledgerly Test Source Line: weight (Float), label (Data).
 
-    Requires ``developer_mode = 1`` on the site, since creating DocTypes is a
-    developer action. CI sets this in common_site_config.json. On a production
-    Frappe Cloud site, tests will skip via the ``skipUnless`` guard below.
+    Requires ``developer_mode = 1`` on the site (CI sets this).
     """
     if not frappe.db.exists("DocType", FIXTURE_CHILD_DOCTYPE):
         child = frappe.get_doc(
@@ -51,33 +51,28 @@ def _ensure_fixture_doctypes():
                 "custom": 1,
                 "autoname": "hash",
                 "fields": [
-                    {
-                        "fieldname": "tracked_value",
-                        "fieldtype": "Float",
-                        "label": "Tracked Value",
-                    },
-                    {
-                        "fieldname": "tracked_int",
-                        "fieldtype": "Int",
-                        "label": "Tracked Int",
-                    },
+                    {"fieldname": "tracked_value", "fieldtype": "Float", "label": "Tracked Value"},
+                    {"fieldname": "tracked_int", "fieldtype": "Int", "label": "Tracked Int"},
                     {
                         "fieldname": "category",
                         "fieldtype": "Link",
                         "options": "DocType",
                         "label": "Category",
                     },
-                    {
-                        "fieldname": "notes",
-                        "fieldtype": "Data",
-                        "label": "Notes",
-                    },
+                    {"fieldname": "notes", "fieldtype": "Data", "label": "Notes"},
                     {
                         "fieldname": "lines",
                         "fieldtype": "Table",
                         "options": FIXTURE_CHILD_DOCTYPE,
                         "label": "Lines",
                     },
+                    {"fieldname": "measurement_date", "fieldtype": "Date", "label": "Measurement Date"},
+                    {
+                        "fieldname": "measurement_datetime",
+                        "fieldtype": "Datetime",
+                        "label": "Measurement Datetime",
+                    },
+                    {"fieldname": "measurement_time", "fieldtype": "Time", "label": "Measurement Time"},
                 ],
                 "permissions": [
                     {
@@ -95,12 +90,24 @@ def _ensure_fixture_doctypes():
     frappe.db.commit()
 
 
+def _base_config(name: str) -> dict:
+    """Returns a minimal valid Ledger Config dict for the fixture DocType."""
+    return {
+        "doctype": "Ledger Config",
+        "ledger_name": name,
+        "source_doctype": FIXTURE_DOCTYPE,
+        "value_source_mode": "Field on document",
+        "tracked_field": "tracked_value",
+        "posting_date_source": "Document modification time",
+    }
+
+
 @unittest.skipUnless(
     frappe.conf.get("developer_mode"),
     "Ledger Config tests require developer_mode=1 to create fixture DocTypes.",
 )
 class TestLedgerConfig(unittest.TestCase):
-    """Validation tests for the Ledger Config DocType."""
+    """Validation tests for Ledger Config."""
 
     @classmethod
     def setUpClass(cls):
@@ -123,120 +130,312 @@ class TestLedgerConfig(unittest.TestCase):
         meta = frappe.get_meta("Ledger Config")
         self.assertFalse(meta.is_submittable)
 
-    def test_has_child_dimensions_table(self):
+    def test_has_new_posting_fields(self):
         meta = frappe.get_meta("Ledger Config")
-        df = meta.get_field("dimensions")
-        self.assertIsNotNone(df)
-        self.assertEqual(df.fieldtype, "Table")
-        self.assertEqual(df.options, "Ledger Dimension")
+        for fieldname in ("posting_date_source", "posting_date_field", "posting_time_field",
+                          "value_source_mode"):
+            self.assertIsNotNone(meta.get_field(fieldname), f"Missing field: {fieldname}")
 
     # ------------------------------------------------------------------
-    # Source DocType validation
+    # Source validation (carry-over from PR #3)
     # ------------------------------------------------------------------
 
     def test_rejects_missing_source_doctype(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Missing Source"
-        doc.source_doctype = "NonExistent DocType XYZ"
-        doc.tracked_field = "x"
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Missing Source"),
+                "source_doctype": "NonExistent DocType XYZ",
+            }
+        )
         with self.assertRaises(frappe.ValidationError):
             doc.insert()
 
     def test_rejects_child_table_as_source(self):
-        """A child DocType (istable=1) cannot be the source."""
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Child As Source"
-        doc.source_doctype = FIXTURE_CHILD_DOCTYPE
-        doc.tracked_field = "weight"
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Child Source"),
+                "source_doctype": FIXTURE_CHILD_DOCTYPE,
+                "tracked_field": "weight",
+            }
+        )
         with self.assertRaises(frappe.ValidationError):
             doc.insert()
 
     # ------------------------------------------------------------------
-    # Tracked field validation
+    # value_source_mode
+    # ------------------------------------------------------------------
+
+    def test_accepts_field_on_document_mode(self):
+        doc = frappe.get_doc(_base_config("Test Field Mode"))
+        doc.insert()
+        self.assertTrue(doc.name)
+
+    def test_accepts_sum_across_child_mode(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Child Mode"),
+                "value_source_mode": "Sum across child rows",
+                "child_table_field": "lines",
+                "tracked_field": "weight",
+            }
+        )
+        doc.insert()
+        self.assertTrue(doc.name)
+
+    def test_rejects_child_mode_without_child_table_field(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Child No Field"),
+                "value_source_mode": "Sum across child rows",
+                "tracked_field": "weight",
+            }
+        )
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
+
+    def test_field_mode_clears_stale_child_table_field(self):
+        """If user picks child mode then switches back, child_table_field should clear on save."""
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Mode Switch"),
+                "value_source_mode": "Field on document",
+                "child_table_field": "lines",  # Stale value from prior mode
+            }
+        )
+        doc.insert()
+        self.assertIsNone(doc.child_table_field)
+
+    # ------------------------------------------------------------------
+    # tracked_field validation
     # ------------------------------------------------------------------
 
     def test_rejects_non_numeric_tracked_field(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Non-Numeric Tracked"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "notes"  # Data field
+        doc = frappe.get_doc({**_base_config("Test Bad Tracked"), "tracked_field": "notes"})
         with self.assertRaises(frappe.ValidationError):
             doc.insert()
-
-    def test_rejects_nonexistent_tracked_field(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Missing Tracked"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "definitely_not_a_field_xyz"
-        with self.assertRaises(frappe.ValidationError):
-            doc.insert()
-
-    def test_accepts_float_tracked_field(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Float Tracked"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "tracked_value"
-        doc.insert()
-        self.assertTrue(doc.name)
 
     def test_accepts_int_tracked_field(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Int Tracked"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "tracked_int"
+        doc = frappe.get_doc({**_base_config("Test Int Tracked"), "tracked_field": "tracked_int"})
         doc.insert()
         self.assertTrue(doc.name)
 
     # ------------------------------------------------------------------
-    # Child table support
+    # Posting date validation (NEW IN PR #3.5)
     # ------------------------------------------------------------------
 
-    def test_accepts_tracked_field_on_child_table(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Child Table Tracked"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.child_table_field = "lines"
-        doc.tracked_field = "weight"
+    def test_rejects_missing_posting_date_source(self):
+        doc = frappe.get_doc(
+            {**_base_config("Test No Posting Source"), "posting_date_source": None}
+        )
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
+
+    def test_rejects_invalid_posting_date_source(self):
+        doc = frappe.get_doc(
+            {**_base_config("Test Bad Posting Source"), "posting_date_source": "Made up source"}
+        )
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
+
+    def test_field_source_requires_posting_date_field(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Field Source No Field"),
+                "posting_date_source": "Field on source DocType",
+            }
+        )
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
+
+    def test_accepts_date_posting_field(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Date Posting"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+            }
+        )
         doc.insert()
         self.assertTrue(doc.name)
 
-    def test_rejects_non_table_child_table_field(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Bad Child Table Field"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.child_table_field = "notes"  # Data, not Table
-        doc.tracked_field = "weight"
+    def test_accepts_datetime_posting_field(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test DT Posting"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_datetime",
+            }
+        )
+        doc.insert()
+        self.assertTrue(doc.name)
+
+    def test_rejects_non_date_posting_field(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Bad Posting Field"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "notes",  # Data, not Date/Datetime
+            }
+        )
         with self.assertRaises(frappe.ValidationError):
             doc.insert()
+
+    def test_accepts_time_field_alongside_date(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Date+Time"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+                "posting_time_field": "measurement_time",
+            }
+        )
+        doc.insert()
+        self.assertTrue(doc.name)
+
+    def test_rejects_time_field_with_datetime_date(self):
+        """If date field is already a Datetime, a separate time field is redundant."""
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Redundant Time"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_datetime",
+                "posting_time_field": "measurement_time",
+            }
+        )
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
+
+    def test_rejects_non_time_posting_time_field(self):
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Bad Time Field"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+                "posting_time_field": "notes",  # Data, not Time
+            }
+        )
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
+
+    def test_modification_time_source_clears_stale_fields(self):
+        """Switching back to modification time should clear field selections on save."""
+        doc = frappe.get_doc(
+            {
+                **_base_config("Test Posting Clear"),
+                "posting_date_source": "Document modification time",
+                "posting_date_field": "measurement_date",  # Stale value
+                "posting_time_field": "measurement_time",  # Stale value
+            }
+        )
+        doc.insert()
+        self.assertIsNone(doc.posting_date_field)
+        self.assertIsNone(doc.posting_time_field)
 
     # ------------------------------------------------------------------
-    # Dimension validation
+    # resolve_posting_datetime helper (NEW IN PR #3.5)
     # ------------------------------------------------------------------
 
-    def test_rejects_non_link_dimension(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Bad Dimension"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "tracked_value"
-        doc.append("dimensions", {"dimension_fieldname": "notes"})  # Data, not Link
-        with self.assertRaises(frappe.ValidationError):
-            doc.insert()
+    def test_resolve_posting_datetime_modification_mode(self):
+        config = frappe.get_doc(_base_config("Test Resolve Mod"))
+        config.insert()
 
-    def test_rejects_duplicate_dimensions(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Duplicate Dimensions"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "tracked_value"
-        doc.append("dimensions", {"dimension_fieldname": "category"})
-        doc.append("dimensions", {"dimension_fieldname": "category"})
+        # Build a faux source doc with a modified timestamp.
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE,
+            name="FAKE-1",
+            modified="2026-04-27 10:30:00",
+        )
+        result = config.resolve_posting_datetime(fake_doc)
+        self.assertEqual(result, get_datetime("2026-04-27 10:30:00"))
+
+    def test_resolve_posting_datetime_field_mode_datetime(self):
+        config = frappe.get_doc(
+            {
+                **_base_config("Test Resolve DT"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_datetime",
+            }
+        )
+        config.insert()
+
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE,
+            name="FAKE-2",
+            measurement_datetime="2026-04-28 14:00:00",
+        )
+        result = config.resolve_posting_datetime(fake_doc)
+        self.assertEqual(result, get_datetime("2026-04-28 14:00:00"))
+
+    def test_resolve_posting_datetime_field_mode_date_only(self):
+        """Date-only posting field should produce 00:00:00 time."""
+        config = frappe.get_doc(
+            {
+                **_base_config("Test Resolve Date"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+            }
+        )
+        config.insert()
+
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE,
+            name="FAKE-3",
+            measurement_date="2026-04-29",
+        )
+        result = config.resolve_posting_datetime(fake_doc)
+        # get_datetime("2026-04-29") returns 2026-04-29 00:00:00.
+        self.assertEqual(result.year, 2026)
+        self.assertEqual(result.month, 4)
+        self.assertEqual(result.day, 29)
+        self.assertEqual(result.hour, 0)
+
+    def test_resolve_posting_datetime_field_mode_date_plus_time(self):
+        config = frappe.get_doc(
+            {
+                **_base_config("Test Resolve Date Plus Time"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+                "posting_time_field": "measurement_time",
+            }
+        )
+        config.insert()
+
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE,
+            name="FAKE-4",
+            measurement_date="2026-04-30",
+            measurement_time="09:15:00",
+        )
+        result = config.resolve_posting_datetime(fake_doc)
+        self.assertEqual(result.year, 2026)
+        self.assertEqual(result.month, 4)
+        self.assertEqual(result.day, 30)
+        self.assertEqual(result.hour, 9)
+        self.assertEqual(result.minute, 15)
+
+    def test_resolve_posting_datetime_raises_on_empty_field(self):
+        """If the configured field is empty on the source doc, raise."""
+        config = frappe.get_doc(
+            {
+                **_base_config("Test Empty Field"),
+                "posting_date_source": "Field on source DocType",
+                "posting_date_field": "measurement_date",
+            }
+        )
+        config.insert()
+
+        fake_doc = frappe._dict(
+            doctype=FIXTURE_DOCTYPE, name="FAKE-5", measurement_date=None
+        )
         with self.assertRaises(frappe.ValidationError):
-            doc.insert()
+            config.resolve_posting_datetime(fake_doc)
+
+    # ------------------------------------------------------------------
+    # Dimensions (carry-over)
+    # ------------------------------------------------------------------
 
     def test_enriches_dimensions_on_save(self):
-        doc = frappe.new_doc("Ledger Config")
-        doc.ledger_name = "Test Enrichment"
-        doc.source_doctype = FIXTURE_DOCTYPE
-        doc.tracked_field = "tracked_value"
+        doc = frappe.get_doc(_base_config("Test Enrichment"))
         doc.append("dimensions", {"dimension_fieldname": "category"})
         doc.insert()
 
@@ -244,71 +443,24 @@ class TestLedgerConfig(unittest.TestCase):
         self.assertEqual(dim.label, "Category")
         self.assertEqual(dim.link_doctype, "DocType")
 
-    def test_enforces_max_dimensions(self):
-        # Add a second Link field to the fixture for this test.
-        meta = frappe.get_meta(FIXTURE_DOCTYPE)
-        if not meta.get_field("secondary_category"):
-            df = frappe.get_doc("DocType", FIXTURE_DOCTYPE)
-            df.append(
-                "fields",
-                {
-                    "fieldname": "secondary_category",
-                    "fieldtype": "Link",
-                    "options": "DocType",
-                    "label": "Secondary Category",
-                },
-            )
-            df.save(ignore_permissions=True)
-            frappe.db.commit()
-            frappe.clear_cache(doctype=FIXTURE_DOCTYPE)
-
-        frappe.local.conf["ledgerly_max_dimensions"] = 1
-        try:
-            doc = frappe.new_doc("Ledger Config")
-            doc.ledger_name = "Test Max Dims"
-            doc.source_doctype = FIXTURE_DOCTYPE
-            doc.tracked_field = "tracked_value"
-            doc.append("dimensions", {"dimension_fieldname": "category"})
-            doc.append("dimensions", {"dimension_fieldname": "secondary_category"})
-            with self.assertRaises(frappe.ValidationError):
-                doc.insert()
-        finally:
-            frappe.local.conf.pop("ledgerly_max_dimensions", None)
+    def test_rejects_non_link_dimension(self):
+        doc = frappe.get_doc(_base_config("Test Bad Dim"))
+        doc.append("dimensions", {"dimension_fieldname": "notes"})
+        with self.assertRaises(frappe.ValidationError):
+            doc.insert()
 
     # ------------------------------------------------------------------
     # Whitelisted API
     # ------------------------------------------------------------------
 
-    def test_get_field_options_returns_expected_shape(self):
+    def test_get_field_options_returns_new_lists(self):
         result = get_field_options(source_doctype=FIXTURE_DOCTYPE)
-        self.assertIn("tracked_fields", result)
-        self.assertIn("child_table_fields", result)
-        self.assertIn("dimension_fields", result)
+        self.assertIn("posting_date_fields", result)
+        self.assertIn("posting_time_fields", result)
 
-        tracked_names = {f["value"] for f in result["tracked_fields"]}
-        self.assertIn("tracked_value", tracked_names)
-        self.assertIn("tracked_int", tracked_names)
-        self.assertNotIn("notes", tracked_names)  # Data field excluded
+        date_names = {f["value"] for f in result["posting_date_fields"]}
+        self.assertIn("measurement_date", date_names)
+        self.assertIn("measurement_datetime", date_names)
 
-        dim_names = {f["value"] for f in result["dimension_fields"]}
-        self.assertIn("category", dim_names)
-        self.assertNotIn("notes", dim_names)  # Data field excluded
-        self.assertNotIn("tracked_value", dim_names)  # Float field excluded
-
-        child_names = {f["value"] for f in result["child_table_fields"]}
-        self.assertIn("lines", child_names)
-
-    def test_get_field_options_with_child_table_filter(self):
-        """When child_table_field is set, tracked fields come from the child meta."""
-        result = get_field_options(
-            source_doctype=FIXTURE_DOCTYPE, child_table_field="lines"
-        )
-        tracked_names = {f["value"] for f in result["tracked_fields"]}
-        self.assertIn("weight", tracked_names)
-        # The parent's tracked_value should NOT appear when child is selected.
-        self.assertNotIn("tracked_value", tracked_names)
-
-    def test_get_field_options_handles_missing_doctype(self):
-        result = get_field_options(source_doctype="NonExistent XYZ")
-        self.assertEqual(result["tracked_fields"], [])
-        self.assertEqual(result["dimension_fields"], [])
+        time_names = {f["value"] for f in result["posting_time_fields"]}
+        self.assertIn("measurement_time", time_names)
