@@ -181,14 +181,14 @@ def _signature_already_exists(config_name, source_name, signature):
 
 
 def _compute_current_balance(config_name, source_name, before_datetime):
-    """Return running balance for this slice immediately before the given datetime."""
+    """Return running balance for this slice at or before the given datetime."""
     rows = frappe.get_all(
         "Ledger Entry",
         filters={
             "ledger_config": config_name,
             "source_name": source_name,
             "docstatus": 1,
-            "posting_datetime": ["<", before_datetime],
+            "posting_datetime": ["<=", before_datetime],
         },
         fields=["balance"],
         order_by="posting_datetime desc",
