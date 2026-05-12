@@ -50,7 +50,7 @@ class LedgerEntry(Document):
         )
 
     def _compute_change_signature(self):
-        """Hash of (source_doctype, source_name, posting_datetime, value)."""
+        """Hash of (source_doctype, source_name, posting_datetime, value, delta)."""
         if not (self.source_name and self.posting_datetime and self.value is not None):
             return
 
@@ -61,6 +61,7 @@ class LedgerEntry(Document):
                 self.posting_datetime.isoformat() if hasattr(self.posting_datetime, "isoformat")
                 else str(self.posting_datetime),
                 f"{float(self.value):.6f}",
+                f"{float(self.delta or 0):.6f}",
             ]
         ).encode("utf-8")
         self.change_signature = hashlib.sha256(payload).hexdigest()[:32]
