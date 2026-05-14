@@ -31,46 +31,60 @@ frappe.query_reports["Custom Ledger"] = {
             default: frappe.datetime.get_today(),
         },
         // source_name and dim_1..5 start hidden; updated by update_dynamic_filters().
+        // MultiSelectList: get_data reads filter.df.options (set dynamically to the
+        // linked doctype) so autocomplete always queries the correct doctype.
         {
             fieldname: "source_name",
             label: __("Source Document"),
-            fieldtype: "Link",
-            options: "",
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("source_name", txt);
+            },
             hidden: 1,
         },
         {
             fieldname: "dim_1",
             label: __("Dimension 1"),
-            fieldtype: "Link",
-            options: "",
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("dim_1", txt);
+            },
             hidden: 1,
         },
         {
             fieldname: "dim_2",
             label: __("Dimension 2"),
-            fieldtype: "Link",
-            options: "",
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("dim_2", txt);
+            },
             hidden: 1,
         },
         {
             fieldname: "dim_3",
             label: __("Dimension 3"),
-            fieldtype: "Link",
-            options: "",
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("dim_3", txt);
+            },
             hidden: 1,
         },
         {
             fieldname: "dim_4",
             label: __("Dimension 4"),
-            fieldtype: "Link",
-            options: "",
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("dim_4", txt);
+            },
             hidden: 1,
         },
         {
             fieldname: "dim_5",
             label: __("Dimension 5"),
-            fieldtype: "Link",
-            options: "",
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("dim_5", txt);
+            },
             hidden: 1,
         },
     ],
@@ -94,28 +108,34 @@ frappe.query_reports["Custom Ledger"] = {
     formatter: function (value, row, column, data, default_formatter) {
         const is_summary = data && (data._row_type === "opening" || data._row_type === "closing");
 
-        // --- Opening / Closing rows: amber band + bold. ---
+        // --- Opening / Closing rows: bold on label and numeric cells only. ---
+        // No background, no borders — these rows look like regular data rows
+        // but with bold text on the cells that carry information.
         if (is_summary) {
             const text = value !== null && value !== undefined ? value : "";
-            // Amber background spans the full cell via a block div.
-            return (
-                `<div style="background:#FFF3CD;border-top:1px solid #E6AC00;` +
-                `border-bottom:1px solid #E6AC00;font-weight:600;` +
-                `padding:3px 0;margin:0 -8px;padding-left:8px;">` +
-                `${default_formatter(text, row, column, data)}</div>`
-            );
+            const bold_cols = ["source_name", "opening", "delta", "balance"];
+            if (bold_cols.includes(column.fieldname)) {
+                return `<span style="font-weight:600;">${default_formatter(text, row, column, data)}</span>`;
+            }
+            return default_formatter(text, row, column, data);
         }
 
         // --- Delta column: signed, green for positive, coral for negative. ---
         if (column.fieldname === "delta" && value !== null && value !== undefined) {
             const num = parseFloat(value);
-            if (!isNaN(num) && num !== 0) {
+            if (!isNaN(num)) {
+                const precision = column.precision != null ? column.precision : 2;
+                if (num === 0) {
+                    return (
+                        `<span style="color:#6c757d;font-variant-numeric:tabular-nums;">` +
+                        `${num.toFixed(precision)}</span>`
+                    );
+                }
                 const color = num > 0 ? "#0F6E56" : "#993C1D";
-                const sign = num > 0 ? "+" : "";
-                const formatted = frappe.format(Math.abs(num), { fieldtype: "Float", precision: 6 });
+                const sign = num > 0 ? "+" : "−";
                 return (
                     `<span style="color:${color};font-weight:600;font-variant-numeric:tabular-nums;">` +
-                    `${sign}${num < 0 ? "−" : ""}${formatted}</span>`
+                    `${sign}${Math.abs(num).toFixed(precision)}</span>`
                 );
             }
         }
@@ -151,7 +171,7 @@ function update_dynamic_filters() {
     if (!config) {
         dynamic.forEach((fn) => {
             _set_filter(fn, { hidden: 1 });
-            frappe.query_report.set_filter_value(fn, "");
+            frappe.query_report.set_filter_value(fn, []);
         });
         return;
     }
@@ -166,7 +186,8 @@ function update_dynamic_filters() {
             // Update page title to the ledger's display name.
             frappe.query_report.page.set_title(meta.ledger_name || __("Custom Ledger"));
 
-            // Source Document filter — label and options reflect the source doctype.
+            // Source Document filter — label reflects the source doctype; options
+            // stores the doctype name so get_data can autocomplete against it.
             _set_filter("source_name", {
                 label: __(meta.source_doctype),
                 options: meta.source_doctype,
@@ -184,11 +205,26 @@ function update_dynamic_filters() {
                     });
                 } else {
                     _set_filter(`dim_${i}`, { hidden: 1 });
-                    frappe.query_report.set_filter_value(`dim_${i}`, "");
+                    frappe.query_report.set_filter_value(`dim_${i}`, []);
                 }
             }
         },
     });
+}
+
+/**
+ * Return autocomplete options for a MultiSelectList filter.
+ * Reads filter.df.options (set by update_dynamic_filters) to know which
+ * doctype to query — this is the convention that ties dynamic doctype
+ * assignment to the get_data callback.
+ */
+function _get_link_options(fieldname, txt) {
+    const filters = frappe.query_report && frappe.query_report.filters;
+    if (!filters) return [];
+    const filter = filters.find((f) => f.df && f.df.fieldname === fieldname);
+    const doctype = filter && filter.df && filter.df.options;
+    if (!doctype) return [];
+    return frappe.db.get_link_options(doctype, txt);
 }
 
 /**
@@ -205,9 +241,13 @@ function _set_filter(fieldname, props) {
 
     Object.assign(filter.df, props);
 
-    // Toggle wrapper visibility based on hidden flag.
     if (filter.$wrapper) {
         filter.$wrapper.toggle(!filter.df.hidden);
+        // Force label text update in the DOM — filter.refresh() alone does
+        // not always re-render the <label> element in Frappe v15 reports.
+        if (props.label) {
+            filter.$wrapper.find(".control-label").text(__(filter.df.label));
+        }
     }
 
     // Re-render the control so updated options/label take effect.
