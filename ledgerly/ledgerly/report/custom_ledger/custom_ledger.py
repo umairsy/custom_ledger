@@ -40,6 +40,7 @@ FN_NARRATION = "narration"
 
 MAX_DIMENSIONS = 5
 NARRATION_MAX_LEN = 80
+DEFAULT_PRECISION = 2
 
 
 def execute(filters: dict | None = None):
@@ -73,6 +74,8 @@ def _validate_filters(filters: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def _build_columns(config) -> list[dict]:
+    precision = _get_field_precision(config)
+
     cols = [
         {
             "fieldname": FN_POSTING_DATE,
@@ -118,21 +121,21 @@ def _build_columns(config) -> list[dict]:
             "fieldname": FN_OPENING,
             "label": _("Opening"),
             "fieldtype": "Float",
-            "precision": 6,
+            "precision": precision,
             "width": 130,
         },
         {
             "fieldname": FN_DELTA,
             "label": _("Delta"),
             "fieldtype": "Float",
-            "precision": 6,
+            "precision": precision,
             "width": 120,
         },
         {
             "fieldname": FN_BALANCE,
             "label": _("Balance"),
             "fieldtype": "Float",
-            "precision": 6,
+            "precision": precision,
             "width": 130,
         },
     ]
@@ -205,6 +208,26 @@ def _build_data(config, filters: dict) -> list[dict]:
 # Queries
 # ---------------------------------------------------------------------------
 
+def _parse_multiselect(val) -> list[str] | None:
+    """Normalise a MultiSelectList filter value to a list of strings, or None if empty."""
+    if not val:
+        return None
+    if isinstance(val, list):
+        items = [v.get("value", v) if isinstance(v, dict) else v for v in val]
+        items = [str(i) for i in items if i]
+        return items or None
+    # Single string (single-select fallback or plain value).
+    return [str(val)] if val else None
+
+
+def _apply_multiselect(base: dict, fieldname: str, val) -> None:
+    """Add an IN or equality filter for a (potentially multi-valued) field."""
+    parsed = _parse_multiselect(val)
+    if not parsed:
+        return
+    base[fieldname] = ["in", parsed] if len(parsed) > 1 else parsed[0]
+
+
 def _query_entries(config, filters: dict) -> list[dict]:
     """Return submitted Ledger Entry rows for this config + filters.
 
@@ -216,8 +239,7 @@ def _query_entries(config, filters: dict) -> list[dict]:
         "docstatus": 1,
     }
 
-    if filters.get("source_name"):
-        base[FN_SOURCE_NAME] = filters["source_name"]
+    _apply_multiselect(base, FN_SOURCE_NAME, filters.get("source_name"))
 
     from_date = filters.get("from_date")
     to_date = filters.get("to_date")
@@ -230,9 +252,7 @@ def _query_entries(config, filters: dict) -> list[dict]:
         base[FN_POSTING_DATE] = ["<=", to_date]
 
     for idx in range(1, MAX_DIMENSIONS + 1):
-        val = filters.get(f"dim_{idx}")
-        if val:
-            base[f"dim_{idx}"] = val
+        _apply_multiselect(base, f"dim_{idx}", filters.get(f"dim_{idx}"))
 
     fields = [
         "name",
@@ -294,6 +314,33 @@ def _total_opening_balance(
         return 0.0
     source_names = list({e[FN_SOURCE_NAME] for e in entries})
     return sum(_opening_balance(config_name, sn, from_date) for sn in source_names)
+
+
+# ---------------------------------------------------------------------------
+# Precision
+# ---------------------------------------------------------------------------
+
+def _get_field_precision(config) -> int:
+    """Return display precision for numeric columns.
+
+    Reads the precision attribute from the tracked field's docfield definition.
+    Falls back to DEFAULT_PRECISION (2) when unset or on any error.
+    """
+    try:
+        target_doctype = config.source_doctype
+        if config.value_source_mode == "Sum across child rows" and config.child_table_field:
+            parent_meta = frappe.get_meta(config.source_doctype)
+            child_df = parent_meta.get_field(config.child_table_field)
+            if child_df:
+                target_doctype = child_df.options
+
+        meta = frappe.get_meta(target_doctype)
+        df = meta.get_field(config.tracked_field)
+        if df and df.precision is not None and str(df.precision).strip():
+            return int(df.precision)
+    except Exception:
+        pass
+    return DEFAULT_PRECISION
 
 
 # ---------------------------------------------------------------------------
