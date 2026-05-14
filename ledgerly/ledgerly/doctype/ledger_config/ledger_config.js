@@ -125,6 +125,7 @@ ledgerly.fetch_field_options = function (frm) {
             set_select("child_table_field", r.message.child_table_fields);
             set_select("posting_date_field", r.message.posting_date_fields);
             set_select("posting_time_field", r.message.posting_time_fields);
+            set_select("narration_field", r.message.narration_fields || []);
 
             // Dimensions grid: dimension_fieldname is a Data field in the
             // child schema, but we treat it as a Select at the UI level

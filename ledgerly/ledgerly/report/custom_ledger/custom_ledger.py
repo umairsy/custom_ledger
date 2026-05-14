@@ -1,27 +1,25 @@
 # Copyright (c) 2026, Ledgerly Contributors
 # License: TBD. See license.txt
-"""Custom Ledger report.
+"""Custom Ledger report — redesign (PR #7 rev 2).
 
-A Frappe Script Report that renders a Ledger Config's entries as a ledger:
-posting date, value, delta, running balance, plus the dimensions configured
-on the Ledger Config.
+Column order: Posting Date | Time | <Source DocType> | Narration* | Opening | Delta | Balance
+  * only when config.narration_field is set
 
-Filter semantics:
-- ledger_config (mandatory): selects which Ledger Config's entries to show
-  AND which columns to render.
-- from_date / to_date: window over posting_date (inclusive on both ends).
-- source_name: narrow to a single source document.
-- group_by_source: when True, sources are grouped. Each source gets an
-  Opening Balance row, its entries, and a Closing Balance row.
-- dim_1 ... dim_5: one filter per configured dimension on the Ledger Config.
+Row types:
+  _row_type = "opening"  — amber summary row at top (balance as of From Date)
+  _row_type = "data"     — body entry rows
+  _row_type = "closing"  — amber summary row at bottom (final balance + net delta)
 
-Cancelled entries (docstatus=2) are always excluded.
+Math invariant on every data row: Opening + Delta = Balance
+  Implemented as: opening = balance - delta  (always exact, no cross-row state)
 
-Opening Balance semantics:
-- Per source: the balance of the last entry with posting_datetime < from_date.
-- Falls back to 0 if no prior entry exists.
-- Dimension filters do NOT affect opening balance computation. Balance is
-  per-source; dimensions are visual slicers within the window.
+Opening balance row: sum of each source's last entry balance before From Date.
+Closing balance row: sum of each source's last entry balance in the window,
+  plus net delta (= sum of all deltas in the window).
+
+Narration: batch-fetched in one extra query to avoid N+1.
+
+Sort: posting_datetime ASC, name ASC (tiebreaker) — hardcoded; correctness requirement.
 """
 
 from __future__ import annotations
@@ -30,65 +28,52 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 
-# Fieldname constants — used throughout to keep call sites readable.
 FN_POSTING_DATE = "posting_date"
 FN_POSTING_TIME = "posting_time"
 FN_POSTING_DATETIME = "posting_datetime"
 FN_SOURCE_DOCTYPE = "source_doctype"
 FN_SOURCE_NAME = "source_name"
-FN_VALUE = "value"
 FN_DELTA = "delta"
 FN_BALANCE = "balance"
+FN_OPENING = "opening"
+FN_NARRATION = "narration"
 
-# Maximum dimension columns supported by Ledger Entry. Kept in sync with the
-# DocType schema. If the schema ever grows, bump this and the indexed dim_N
-# usage below.
 MAX_DIMENSIONS = 5
+NARRATION_MAX_LEN = 80
 
 
 def execute(filters: dict | None = None):
-    """Main entry point. Frappe calls this with the report's filter values."""
+    """Frappe Script Report entry point. Returns (columns, data)."""
     filters = filters or {}
 
     if not filters.get("ledger_config"):
-        # Mandatory filter not supplied — return empty result with a helpful
-        # column hint rather than raising.
         return [], []
 
     config = frappe.get_cached_doc("Ledger Config", filters["ledger_config"])
-
     _validate_filters(filters)
 
     columns = _build_columns(config)
     data = _build_data(config, filters)
-
     return columns, data
 
 
-# ----------------------------------------------------------------------
-# Filter validation
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
 
 def _validate_filters(filters: dict) -> None:
-    """Raise on filter combinations that don't make sense."""
     from_date = filters.get("from_date")
     to_date = filters.get("to_date")
     if from_date and to_date and getdate(to_date) < getdate(from_date):
         frappe.throw(_("To Date cannot be earlier than From Date."))
 
 
-# ----------------------------------------------------------------------
-# Column construction
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Columns
+# ---------------------------------------------------------------------------
 
 def _build_columns(config) -> list[dict]:
-    """Return Frappe Script Report column defs for this Ledger Config.
-
-    Always returns the base columns (date/time/source/value/delta/balance),
-    plus one column per dimension declared on the Ledger Config. Dimension
-    columns are Dynamic Link pointing at the dimension's link_doctype.
-    """
-    columns: list[dict] = [
+    cols = [
         {
             "fieldname": FN_POSTING_DATE,
             "label": _("Posting Date"),
@@ -99,44 +84,64 @@ def _build_columns(config) -> list[dict]:
             "fieldname": FN_POSTING_TIME,
             "label": _("Time"),
             "fieldtype": "Time",
-            "width": 90,
+            "width": 80,
+        },
+        {
+            # Hidden helper column so Dynamic Link can resolve its doctype.
+            "fieldname": FN_SOURCE_DOCTYPE,
+            "label": _("Source DocType"),
+            "fieldtype": "Data",
+            "hidden": 1,
+            "width": 0,
         },
         {
             "fieldname": FN_SOURCE_NAME,
-            "label": _("Source Document"),
+            "label": _(config.source_doctype),
             "fieldtype": "Dynamic Link",
             "options": FN_SOURCE_DOCTYPE,
-            "width": 180,
+            "width": 200,
         },
+    ]
+
+    if config.narration_field:
+        cols.append(
+            {
+                "fieldname": FN_NARRATION,
+                "label": _("Narration"),
+                "fieldtype": "Data",
+                "width": 220,
+            }
+        )
+
+    cols += [
         {
-            "fieldname": FN_VALUE,
-            "label": _("Value"),
+            "fieldname": FN_OPENING,
+            "label": _("Opening"),
             "fieldtype": "Float",
             "precision": 6,
-            "width": 110,
+            "width": 130,
         },
         {
             "fieldname": FN_DELTA,
             "label": _("Delta"),
             "fieldtype": "Float",
             "precision": 6,
-            "width": 110,
+            "width": 120,
         },
         {
             "fieldname": FN_BALANCE,
             "label": _("Balance"),
             "fieldtype": "Float",
             "precision": 6,
-            "width": 120,
+            "width": 130,
         },
     ]
 
-    # One column per configured dimension. The column's options point at the
-    # dim_N_doctype field so each row resolves its own link target.
+    # Dimension columns — one per configured dim.
     for idx, dim in enumerate(config.dimensions or [], start=1):
         if idx > MAX_DIMENSIONS:
             break
-        columns.append(
+        cols.append(
             {
                 "fieldname": f"dim_{idx}",
                 "label": dim.label or dim.dimension_fieldname,
@@ -146,104 +151,88 @@ def _build_columns(config) -> list[dict]:
             }
         )
 
-    return columns
+    return cols
 
 
-# ----------------------------------------------------------------------
-# Data construction
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Data
+# ---------------------------------------------------------------------------
 
 def _build_data(config, filters: dict) -> list[dict]:
-    """Build the list of report rows for the given filters."""
-    source_name = filters.get("source_name")
-    group_by_source = filters.get("group_by_source")
+    entries = _query_entries(config, filters)
+    has_narration = bool(config.narration_field)
 
-    if source_name:
-        # Single-source view: opening row, entries, closing row.
-        return _rows_for_source(config, source_name, filters)
+    # Batch-fetch narrations in one query.
+    narrations: dict[str, str] = {}
+    if has_narration and entries:
+        source_names = list({e[FN_SOURCE_NAME] for e in entries})
+        narrations = _fetch_narrations(
+            config.source_doctype, source_names, config.narration_field
+        )
 
-    if group_by_source:
-        # Grouped view: one block per source that has matching entries.
-        return _grouped_rows(config, filters)
-
-    # Flat view: just chronological entries across all matching sources.
-    return _flat_entry_rows(config, filters)
-
-
-def _rows_for_source(config, source_name: str, filters: dict) -> list[dict]:
-    """Opening row + entries + closing row for one source."""
-    opening = _opening_balance(config.name, source_name, filters.get("from_date"))
-    entries = _query_entries(
-        config_name=config.name,
-        filters=filters,
-        source_name=source_name,
+    # Opening balance: sum of each source's last balance before From Date.
+    total_opening = _total_opening_balance(
+        config.name, entries, filters.get("from_date")
     )
 
     rows: list[dict] = []
-    rows.append(_balance_row(_("Opening Balance"), source_name, opening))
-    rows.extend(_entry_to_row(e) for e in entries)
-    closing = entries[-1][FN_BALANCE] if entries else opening
-    rows.append(_balance_row(_("Closing Balance"), source_name, closing))
+
+    # Opening summary row.
+    rows.append(_summary_row("opening", _("Opening Balance"), total_opening, None, has_narration))
+
+    # Body rows.
+    for entry in entries:
+        opening = flt(entry[FN_BALANCE]) - flt(entry[FN_DELTA])
+        rows.append(_entry_row(entry, opening, narrations, has_narration, config))
+
+    # Closing summary row.
+    net_delta = sum(flt(e[FN_DELTA]) for e in entries)
+    # Final balance: last-seen balance per source (iteration is datetime asc,
+    # so last occurrence wins — correct).
+    final_per_source: dict[str, float] = {}
+    for e in entries:
+        final_per_source[e[FN_SOURCE_NAME]] = flt(e[FN_BALANCE])
+    total_final = sum(final_per_source.values()) if final_per_source else total_opening
+
+    rows.append(
+        _summary_row("closing", _("Closing Balance"), total_final, net_delta, has_narration)
+    )
+
     return rows
 
 
-def _grouped_rows(config, filters: dict) -> list[dict]:
-    """One block per source: opening, entries, closing — sorted alphabetically by source."""
-    source_names = _sources_with_entries_in_window(config.name, filters)
-
-    rows: list[dict] = []
-    for source_name in source_names:
-        rows.extend(_rows_for_source(config, source_name, filters))
-    return rows
-
-
-def _flat_entry_rows(config, filters: dict) -> list[dict]:
-    """All matching entries, ordered chronologically. No opening/closing."""
-    entries = _query_entries(config_name=config.name, filters=filters)
-    return [_entry_to_row(e) for e in entries]
-
-
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Queries
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
-def _query_entries(
-    *,
-    config_name: str,
-    filters: dict,
-    source_name: str | None = None,
-) -> list[dict]:
-    """Return submitted Ledger Entry rows matching the filters.
+def _query_entries(config, filters: dict) -> list[dict]:
+    """Return submitted Ledger Entry rows for this config + filters.
 
-    Always excludes cancelled entries (docstatus != 2).
+    Sort: posting_datetime ASC, name ASC — hardcoded correctness requirement.
+    Cancelled entries (docstatus=2) are always excluded.
     """
-    base_filters: dict = {
-        "ledger_config": config_name,
-        "docstatus": 1,  # Submitted only; excludes draft (0) and cancelled (2).
+    base: dict = {
+        "ledger_config": config.name,
+        "docstatus": 1,
     }
 
-    if source_name:
-        base_filters[FN_SOURCE_NAME] = source_name
+    if filters.get("source_name"):
+        base[FN_SOURCE_NAME] = filters["source_name"]
 
-    if filters.get("from_date"):
-        base_filters.setdefault(FN_POSTING_DATE, [])
-        base_filters[FN_POSTING_DATE] = [">=", filters["from_date"]]
+    from_date = filters.get("from_date")
+    to_date = filters.get("to_date")
 
-    if filters.get("to_date"):
-        existing = base_filters.get(FN_POSTING_DATE)
-        if existing and isinstance(existing, list) and existing[0] == ">=":
-            base_filters[FN_POSTING_DATE] = [
-                "between",
-                [existing[1], filters["to_date"]],
-            ]
-        else:
-            base_filters[FN_POSTING_DATE] = ["<=", filters["to_date"]]
+    if from_date and to_date:
+        base[FN_POSTING_DATE] = ["between", [from_date, to_date]]
+    elif from_date:
+        base[FN_POSTING_DATE] = [">=", from_date]
+    elif to_date:
+        base[FN_POSTING_DATE] = ["<=", to_date]
 
-    # Dimension filters.
     for idx in range(1, MAX_DIMENSIONS + 1):
-        key = f"dim_{idx}"
-        if filters.get(key):
-            base_filters[key] = filters[key]
+        val = filters.get(f"dim_{idx}")
+        if val:
+            base[f"dim_{idx}"] = val
 
     fields = [
         "name",
@@ -252,7 +241,6 @@ def _query_entries(
         FN_POSTING_DATETIME,
         FN_SOURCE_DOCTYPE,
         FN_SOURCE_NAME,
-        FN_VALUE,
         FN_DELTA,
         FN_BALANCE,
     ] + [f"dim_{i}" for i in range(1, MAX_DIMENSIONS + 1)] + [
@@ -261,53 +249,28 @@ def _query_entries(
 
     return frappe.get_all(
         "Ledger Entry",
-        filters=base_filters,
+        filters=base,
         fields=fields,
-        order_by=f"{FN_SOURCE_NAME} asc, {FN_POSTING_DATETIME} asc",
+        order_by=f"{FN_POSTING_DATETIME} asc, name asc",
     )
 
 
-def _sources_with_entries_in_window(config_name: str, filters: dict) -> list[str]:
-    """Return distinct source_name values with at least one entry in the window."""
-    base_filters: dict = {
-        "ledger_config": config_name,
-        "docstatus": 1,
-    }
-    if filters.get("from_date"):
-        base_filters[FN_POSTING_DATE] = [">=", filters["from_date"]]
-    if filters.get("to_date"):
-        existing = base_filters.get(FN_POSTING_DATE)
-        if existing and isinstance(existing, list) and existing[0] == ">=":
-            base_filters[FN_POSTING_DATE] = [
-                "between",
-                [existing[1], filters["to_date"]],
-            ]
-        else:
-            base_filters[FN_POSTING_DATE] = ["<=", filters["to_date"]]
-    for idx in range(1, MAX_DIMENSIONS + 1):
-        key = f"dim_{idx}"
-        if filters.get(key):
-            base_filters[key] = filters[key]
-
+def _fetch_narrations(
+    source_doctype: str, source_names: list[str], narration_field: str
+) -> dict[str, str]:
+    """Batch-fetch narration values. One query for all source documents."""
     rows = frappe.get_all(
-        "Ledger Entry",
-        filters=base_filters,
-        fields=[FN_SOURCE_NAME],
-        group_by=FN_SOURCE_NAME,
-        order_by=f"{FN_SOURCE_NAME} asc",
+        source_doctype,
+        filters={"name": ["in", source_names]},
+        fields=["name", narration_field],
     )
-    return [r[FN_SOURCE_NAME] for r in rows]
+    return {r["name"]: (r.get(narration_field) or "") for r in rows}
 
 
 def _opening_balance(config_name: str, source_name: str, from_date) -> float:
-    """Balance of the last submitted entry before from_date for this source.
-
-    Note: deliberately ignores dimension filters. Balance is per-source.
-    If no from_date is supplied, opening is 0 (the report shows full history).
-    """
+    """Last submitted balance for this source strictly before from_date."""
     if not from_date:
         return 0.0
-
     rows = frappe.get_all(
         "Ledger Entry",
         filters={
@@ -323,39 +286,69 @@ def _opening_balance(config_name: str, source_name: str, from_date) -> float:
     return flt(rows[0][FN_BALANCE]) if rows else 0.0
 
 
-# ----------------------------------------------------------------------
-# Row formatting
-# ----------------------------------------------------------------------
+def _total_opening_balance(
+    config_name: str, entries: list[dict], from_date
+) -> float:
+    """Sum of pre-period opening balances for every source that appears in entries."""
+    if not from_date or not entries:
+        return 0.0
+    source_names = list({e[FN_SOURCE_NAME] for e in entries})
+    return sum(_opening_balance(config_name, sn, from_date) for sn in source_names)
 
-def _entry_to_row(entry: dict) -> dict:
-    """Convert a Ledger Entry dict from the DB into a report row dict."""
+
+# ---------------------------------------------------------------------------
+# Row builders
+# ---------------------------------------------------------------------------
+
+def _entry_row(
+    entry: dict,
+    opening: float,
+    narrations: dict[str, str],
+    has_narration: bool,
+    config,
+) -> dict:
     row = {
+        "_row_type": "data",
         FN_POSTING_DATE: entry[FN_POSTING_DATE],
         FN_POSTING_TIME: entry[FN_POSTING_TIME],
         FN_SOURCE_DOCTYPE: entry[FN_SOURCE_DOCTYPE],
         FN_SOURCE_NAME: entry[FN_SOURCE_NAME],
-        FN_VALUE: flt(entry[FN_VALUE]),
+        FN_OPENING: flt(opening),
         FN_DELTA: flt(entry[FN_DELTA]),
         FN_BALANCE: flt(entry[FN_BALANCE]),
     }
+    if has_narration:
+        raw = narrations.get(entry[FN_SOURCE_NAME], "") or ""
+        row[FN_NARRATION] = raw[:NARRATION_MAX_LEN] + "…" if len(raw) > NARRATION_MAX_LEN else raw
+
     for idx in range(1, MAX_DIMENSIONS + 1):
         row[f"dim_{idx}"] = entry.get(f"dim_{idx}")
         row[f"dim_{idx}_doctype"] = entry.get(f"dim_{idx}_doctype")
+
     return row
 
 
-def _balance_row(label: str, source_name: str, balance: float) -> dict:
-    """Build a synthetic opening/closing row.
-
-    These rows have no posting date/time and no delta — they're summary
-    markers. The label goes in the Source Document column for visibility.
-    """
-    return {
+def _summary_row(
+    row_type: str,
+    label: str,
+    balance: float,
+    delta: float | None,
+    has_narration: bool,
+) -> dict:
+    """Opening or Closing amber summary row."""
+    row = {
+        "_row_type": row_type,
         FN_POSTING_DATE: None,
         FN_POSTING_TIME: None,
         FN_SOURCE_DOCTYPE: None,
-        FN_SOURCE_NAME: f"{label}: {source_name}",
-        FN_VALUE: None,
-        FN_DELTA: None,
+        FN_SOURCE_NAME: label,
+        FN_OPENING: balance if row_type == "opening" else None,
+        FN_DELTA: flt(delta) if delta is not None else None,
         FN_BALANCE: flt(balance),
     }
+    if has_narration:
+        row[FN_NARRATION] = None
+    for idx in range(1, MAX_DIMENSIONS + 1):
+        row[f"dim_{idx}"] = None
+        row[f"dim_{idx}_doctype"] = None
+    return row
