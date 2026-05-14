@@ -108,23 +108,16 @@ frappe.query_reports["Custom Ledger"] = {
     formatter: function (value, row, column, data, default_formatter) {
         const is_summary = data && (data._row_type === "opening" || data._row_type === "closing");
 
-        // --- Opening / Closing rows: selective amber highlighting. ---
-        // Only the label cell (source_name) and numeric cells (opening, delta,
-        // balance) get the amber fill. All other cells keep a plain border-only
-        // treatment so the row is visually grouped without a heavy stripe.
+        // --- Opening / Closing rows: bold on label and numeric cells only. ---
+        // No background, no borders — these rows look like regular data rows
+        // but with bold text on the cells that carry information.
         if (is_summary) {
             const text = value !== null && value !== undefined ? value : "";
-            const amber_cols = ["source_name", "opening", "delta", "balance"];
-            const border = "border-top:1px solid #BA7517;border-bottom:1px solid #BA7517;";
-            const pad = "padding:3px 0;margin:0 -8px;padding-left:8px;";
-
-            if (amber_cols.includes(column.fieldname)) {
-                return (
-                    `<div style="background:#FAEEDA;color:#633806;font-weight:600;${border}${pad}">` +
-                    `${default_formatter(text, row, column, data)}</div>`
-                );
+            const bold_cols = ["source_name", "opening", "delta", "balance"];
+            if (bold_cols.includes(column.fieldname)) {
+                return `<span style="font-weight:600;">${default_formatter(text, row, column, data)}</span>`;
             }
-            return `<div style="${border}${pad}">${default_formatter(text, row, column, data)}</div>`;
+            return default_formatter(text, row, column, data);
         }
 
         // --- Delta column: signed, green for positive, coral for negative. ---
