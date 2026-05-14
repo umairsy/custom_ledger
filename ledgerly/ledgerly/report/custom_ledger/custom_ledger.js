@@ -243,15 +243,20 @@ function _set_filter(fieldname, props) {
 
     if (filter.$wrapper) {
         filter.$wrapper.toggle(!filter.df.hidden);
-        // Force label text update in the DOM — filter.refresh() alone does
-        // not always re-render the <label> element in Frappe v15 reports.
-        if (props.label) {
-            filter.$wrapper.find(".control-label").text(__(filter.df.label));
-        }
     }
 
-    // Re-render the control so updated options/label take effect.
+    // Re-render the control so updated options take effect.
     if (typeof filter.refresh === "function") {
         filter.refresh();
+    }
+
+    // Write label to DOM after refresh. For MultiSelectList controls refresh()
+    // resets the <label> text, so we must set it last. Two selectors cover
+    // the different DOM shapes Frappe uses for Link vs MultiSelectList.
+    if (props.label && filter.$wrapper) {
+        filter.$wrapper
+            .find(".control-label, label.control-label")
+            .first()
+            .text(__(filter.df.label));
     }
 }
