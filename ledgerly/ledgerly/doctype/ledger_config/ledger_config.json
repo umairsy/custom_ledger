@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "ledger_name",
+  "ledger_type",
   "is_active",
   "column_break_header",
   "track_balance",
@@ -36,6 +37,17 @@
    "reqd": 1,
    "unique": 1,
    "description": "Human-readable name, e.g. 'Goat Weight Ledger'."
+  },
+  {
+   "default": "Track changes to a field",
+   "fieldname": "ledger_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Ledger Type",
+   "options": "Track changes to a field",
+   "reqd": 1,
+   "description": "Determines how this ledger captures changes. 'Track changes to a field' watches a single numeric field on the source DocType. ('Track balance from transactions' ships in a later release.)"
   },
   {
    "default": "1",

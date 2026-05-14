@@ -6,7 +6,7 @@ import unittest
 import frappe
 from frappe.utils import flt
 
-from ledgerly.core.ledger_engine import (
+from ledgerly.core.engine_value_snapshot import (
     _get_active_configs_for_doctype,
     invalidate_config_cache,
 )
@@ -25,6 +25,7 @@ def _make_config(name, **overrides):
         {
             "doctype": "Ledger Config",
             "ledger_name": name,
+            "ledger_type": "Track changes to a field",
             "source_doctype": FIXTURE_DOCTYPE,
             "value_source_mode": "Field on document",
             "tracked_field": "tracked_value",
