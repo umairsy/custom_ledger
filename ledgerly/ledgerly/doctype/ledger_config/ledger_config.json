@@ -18,6 +18,7 @@
   "child_table_field",
   "column_break_source",
   "tracked_field",
+  "narration_field",
   "section_posting",
   "posting_date_source",
   "posting_date_field",
@@ -111,6 +112,13 @@
    "label": "Tracked Field",
    "reqd": 1,
    "description": "The numeric field whose changes are logged. Must be Currency, Int, or Float."
+  },
+  {
+   "depends_on": "eval:doc.source_doctype",
+   "fieldname": "narration_field",
+   "fieldtype": "Select",
+   "label": "Narration Field (optional)",
+   "description": "When set, a Narration column appears in the Custom Ledger report showing this text field from each source document. Must be a Data, Small Text, Text, or Long Text field on the Source DocType."
   },
 
   {

@@ -15,6 +15,9 @@ DATE_FIELDTYPES = ("Date", "Datetime")
 # Fieldtypes valid as a "posting time field".
 TIME_FIELDTYPES = ("Time",)
 
+# Fieldtypes valid as a "narration field".
+TEXT_FIELDTYPES = ("Data", "Small Text", "Text", "Long Text")
+
 # Posting date source options. Mirrors the Select in ledger_config.json.
 POSTING_SOURCE_MODIFIED = "Document modification time"
 POSTING_SOURCE_FIELD = "Field on source DocType"
@@ -41,6 +44,7 @@ class LedgerConfig(Document):
         self._validate_value_source_mode()
         self._validate_child_table_field()
         self._validate_tracked_field()
+        self._validate_narration_field()
         self._validate_posting_date_source()
         self._validate_posting_date_field()
         self._validate_posting_time_field()
@@ -117,6 +121,25 @@ class LedgerConfig(Document):
                     target_doctype,
                     ", ".join(NUMERIC_FIELDTYPES),
                     df.fieldtype,
+                )
+            )
+
+    def _validate_narration_field(self):
+        """Narration field, if set, must be a text field on the source DocType."""
+        if not self.narration_field:
+            return
+        meta = frappe.get_meta(self.source_doctype)
+        df = meta.get_field(self.narration_field)
+        if not df:
+            frappe.throw(
+                _("Narration Field '{0}' does not exist on {1}.").format(
+                    self.narration_field, self.source_doctype
+                )
+            )
+        if df.fieldtype not in TEXT_FIELDTYPES:
+            frappe.throw(
+                _("Narration Field '{0}' on {1} must be a text field (got {2}).").format(
+                    self.narration_field, self.source_doctype, df.fieldtype
                 )
             )
 
@@ -401,12 +424,46 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
         if df.fieldtype in TIME_FIELDTYPES
     ]
 
+    narration_fields = [
+        {"value": df.fieldname, "label": f"{df.label or df.fieldname} ({df.fieldtype})"}
+        for df in parent_meta.fields
+        if df.fieldtype in TEXT_FIELDTYPES
+    ]
+
     return {
         "tracked_fields": tracked_fields,
         "child_table_fields": child_table_fields,
         "dimension_fields": dimension_fields,
         "posting_date_fields": posting_date_fields,
         "posting_time_fields": posting_time_fields,
+        "narration_fields": narration_fields,
+    }
+
+
+@frappe.whitelist()
+def get_config_meta(name: str) -> dict:
+    """Return config metadata used by the Custom Ledger report's dynamic filters.
+
+    Called by the report's JS when the Ledger Config filter changes so the
+    report can update Source Document and dimension filter labels/options.
+    """
+    if not frappe.has_permission("Ledger Config", "read", name):
+        frappe.throw(_("Insufficient permissions to read Ledger Config '{0}'.").format(name))
+
+    config = frappe.get_cached_doc("Ledger Config", name)
+    return {
+        "ledger_name": config.ledger_name,
+        "source_doctype": config.source_doctype,
+        "narration_field": config.narration_field,
+        "dimensions": [
+            {
+                "fieldname": f"dim_{idx}",
+                "label": dim.label or dim.link_doctype,
+                "link_doctype": dim.link_doctype,
+            }
+            for idx, dim in enumerate(config.dimensions or [], start=1)
+            if idx <= 5
+        ],
     }
 
 

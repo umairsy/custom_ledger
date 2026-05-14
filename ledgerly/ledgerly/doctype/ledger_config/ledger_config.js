@@ -13,6 +13,15 @@ frappe.ui.form.on("Ledger Config", {
         } else {
             frm.toggle_display("posting_time_field", false);
         }
+
+        // "View Report" button — only on saved docs (not on new unsaved ones).
+        if (!frm.is_new()) {
+            frm.add_custom_button(__("View Report"), function () {
+                frappe.set_route("query-report", "Custom Ledger", {
+                    ledger_config: frm.doc.name,
+                });
+            });
+        }
     },
 
     source_doctype: function (frm) {
@@ -116,6 +125,7 @@ ledgerly.fetch_field_options = function (frm) {
             set_select("child_table_field", r.message.child_table_fields);
             set_select("posting_date_field", r.message.posting_date_fields);
             set_select("posting_time_field", r.message.posting_time_fields);
+            set_select("narration_field", r.message.narration_fields || []);
 
             // Dimensions grid: dimension_fieldname is a Data field in the
             // child schema, but we treat it as a Select at the UI level
