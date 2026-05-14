@@ -106,16 +106,6 @@ def _build_columns(config) -> list[dict]:
         },
     ]
 
-    if config.narration_field:
-        cols.append(
-            {
-                "fieldname": FN_NARRATION,
-                "label": _("Narration"),
-                "fieldtype": "Data",
-                "width": 220,
-            }
-        )
-
     cols += [
         {
             "fieldname": FN_OPENING,
@@ -139,6 +129,18 @@ def _build_columns(config) -> list[dict]:
             "width": 130,
         },
     ]
+
+    # Narration and dimensions come after the numeric columns so the
+    # Opening → Delta → Balance flow is uninterrupted when scanning.
+    if config.narration_field:
+        cols.append(
+            {
+                "fieldname": FN_NARRATION,
+                "label": _("Narration"),
+                "fieldtype": "Data",
+                "width": 220,
+            }
+        )
 
     # Dimension columns — one per configured dim.
     for idx, dim in enumerate(config.dimensions or [], start=1):
