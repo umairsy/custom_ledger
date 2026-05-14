@@ -13,6 +13,15 @@ frappe.ui.form.on("Ledger Config", {
         } else {
             frm.toggle_display("posting_time_field", false);
         }
+
+        // "View Report" button — only on saved docs (not on new unsaved ones).
+        if (!frm.is_new()) {
+            frm.add_custom_button(__("View Report"), function () {
+                frappe.set_route("query-report", "Custom Ledger", {
+                    ledger_config: frm.doc.name,
+                });
+            });
+        }
     },
 
     source_doctype: function (frm) {
