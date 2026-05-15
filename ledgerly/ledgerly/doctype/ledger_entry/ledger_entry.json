@@ -34,6 +34,8 @@
   "dim_4_doctype",
   "dim_5",
   "dim_5_doctype",
+  "section_narration",
+  "narration",
   "section_internal",
   "change_signature",
   "amended_from"
@@ -223,6 +225,19 @@
    "label": "Dim 5 DocType",
    "options": "DocType",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_narration",
+   "fieldtype": "Section Break",
+   "label": "Narration",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "narration",
+   "fieldtype": "Small Text",
+   "label": "Narration",
+   "read_only": 1,
+   "description": "Copied from the source document at entry creation time. Immutable — editing the source record later does not change this."
   },
   {
    "fieldname": "section_internal",

@@ -167,14 +167,6 @@ def _build_data(config, filters: dict) -> list[dict]:
     entries = _query_entries(config, filters)
     has_narration = bool(config.narration_field)
 
-    # Batch-fetch narrations in one query.
-    narrations: dict[str, str] = {}
-    if has_narration and entries:
-        source_names = list({e[FN_SOURCE_NAME] for e in entries})
-        narrations = _fetch_narrations(
-            config.source_doctype, source_names, config.narration_field
-        )
-
     # Opening balance: sum of each source's last balance before From Date.
     total_opening = _total_opening_balance(
         config.name, entries, filters.get("from_date")
@@ -185,10 +177,11 @@ def _build_data(config, filters: dict) -> list[dict]:
     # Opening summary row.
     rows.append(_summary_row("opening", _("Opening Balance"), total_opening, None, has_narration))
 
-    # Body rows.
+    # Body rows — narration is read directly from the Ledger Entry row
+    # (stored at creation time from the source doc, so it is immutable).
     for entry in entries:
         opening = flt(entry[FN_BALANCE]) - flt(entry[FN_DELTA])
-        rows.append(_entry_row(entry, opening, narrations, has_narration, config))
+        rows.append(_entry_row(entry, opening, has_narration, config))
 
     # Closing summary row.
     net_delta = sum(flt(e[FN_DELTA]) for e in entries)
@@ -265,6 +258,7 @@ def _query_entries(config, filters: dict) -> list[dict]:
         FN_SOURCE_NAME,
         FN_DELTA,
         FN_BALANCE,
+        FN_NARRATION,
     ] + [f"dim_{i}" for i in range(1, MAX_DIMENSIONS + 1)] + [
         f"dim_{i}_doctype" for i in range(1, MAX_DIMENSIONS + 1)
     ]
@@ -276,17 +270,6 @@ def _query_entries(config, filters: dict) -> list[dict]:
         order_by=f"{FN_POSTING_DATETIME} asc, name asc",
     )
 
-
-def _fetch_narrations(
-    source_doctype: str, source_names: list[str], narration_field: str
-) -> dict[str, str]:
-    """Batch-fetch narration values. One query for all source documents."""
-    rows = frappe.get_all(
-        source_doctype,
-        filters={"name": ["in", source_names]},
-        fields=["name", narration_field],
-    )
-    return {r["name"]: (r.get(narration_field) or "") for r in rows}
 
 
 def _opening_balance(config_name: str, source_name: str, from_date) -> float:
@@ -352,7 +335,6 @@ def _get_field_precision(config) -> int:
 def _entry_row(
     entry: dict,
     opening: float,
-    narrations: dict[str, str],
     has_narration: bool,
     config,
 ) -> dict:
@@ -367,7 +349,7 @@ def _entry_row(
         FN_BALANCE: flt(entry[FN_BALANCE]),
     }
     if has_narration:
-        raw = narrations.get(entry[FN_SOURCE_NAME], "") or ""
+        raw = entry.get(FN_NARRATION) or ""
         row[FN_NARRATION] = raw[:NARRATION_MAX_LEN] + "…" if len(raw) > NARRATION_MAX_LEN else raw
 
     for idx in range(1, MAX_DIMENSIONS + 1):
