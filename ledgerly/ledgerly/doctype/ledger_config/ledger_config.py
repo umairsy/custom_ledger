@@ -51,6 +51,24 @@ class LedgerConfig(Document):
         self._validate_dimensions()
         self._enrich_dimensions()
 
+    def on_update(self):
+        old = self.get_doc_before_save()
+        old_source = old.source_doctype if old else None
+        new_source = self.source_doctype
+
+        # If source doctype changed, the old doctype's script may no longer be
+        # needed — this config is no longer targeting it.
+        if old_source and old_source != new_source:
+            _sync_client_script(old_source)
+
+        _sync_client_script(new_source)
+
+    def on_trash(self):
+        # The record still exists in the DB when on_trash fires, so pass
+        # exclude_self=True so the "any active configs remaining?" check
+        # doesn't count the record being deleted.
+        _sync_client_script(self.source_doctype, exclude_config=self.name)
+
     # ------------------------------------------------------------------
     # Validation helpers
     # ------------------------------------------------------------------
@@ -492,3 +510,118 @@ def get_field_type(source_doctype: str, fieldname: str) -> str | None:
     meta = frappe.get_meta(source_doctype)
     df = meta.get_field(fieldname)
     return df.fieldtype if df else None
+
+
+# ------------------------------------------------------------------
+# Client Script lifecycle helpers
+# ------------------------------------------------------------------
+
+_CLIENT_SCRIPT_PREFIX = "Ledgerly - "
+
+
+def _cs_name(source_doctype: str) -> str:
+    return f"{_CLIENT_SCRIPT_PREFIX}{source_doctype}"
+
+
+def _sync_client_script(source_doctype: str, exclude_config: str | None = None) -> None:
+    """Create or delete the auto-generated Client Script for source_doctype.
+
+    Checks whether any active Ledger Config (other than exclude_config, used
+    when a config is being deleted) still targets source_doctype. Creates
+    the script when at least one remains, deletes it when none do.
+    """
+    if not source_doctype:
+        return
+
+    filters: dict = {"source_doctype": source_doctype, "is_active": 1}
+    if exclude_config:
+        filters["name"] = ["!=", exclude_config]
+
+    if frappe.db.exists("Ledger Config", filters):
+        _upsert_client_script(source_doctype)
+    else:
+        _delete_client_script(source_doctype)
+
+
+def _upsert_client_script(source_doctype: str) -> None:
+    """Create the Client Script if absent; update the script body if present."""
+    name = _cs_name(source_doctype)
+    content = _build_client_script(source_doctype)
+
+    if frappe.db.exists("Client Script", name):
+        doc = frappe.get_doc("Client Script", name)
+        doc.script = content
+        doc.enabled = 1
+        doc.save(ignore_permissions=True)
+    else:
+        doc = frappe.get_doc(
+            {
+                "doctype": "Client Script",
+                "name": name,
+                "dt": source_doctype,
+                "script": content,
+                "enabled": 1,
+            }
+        )
+        doc.insert(ignore_permissions=True)
+
+
+def _delete_client_script(source_doctype: str) -> None:
+    """Remove the auto-generated Client Script for source_doctype, if present."""
+    name = _cs_name(source_doctype)
+    if frappe.db.exists("Client Script", name):
+        frappe.delete_doc("Client Script", name, ignore_permissions=True, force=True)
+
+
+def _build_client_script(source_doctype: str) -> str:
+    """Return the JS body for the auto-generated Client Script.
+
+    Wrapped in an IIFE so nothing leaks into the global scope. The
+    deduplication guard (frm._ledgerly_viewed) prevents duplicate API
+    calls when multiple Client Scripts happen to load for the same form,
+    and is cleared on each refresh so buttons stay live after saves.
+    """
+    import json  # local import — only used during config save, not at import time
+
+    dt = json.dumps(source_doctype)
+    method = json.dumps(
+        "ledgerly.ledgerly.api.source_doctype_buttons.get_ledger_views_for_record"
+    )
+    report_url = "/app/query-report/Custom%20Ledger"
+
+    return (
+        "(function () {\n"
+        f"    frappe.ui.form.on({dt}, {{\n"
+        "        refresh: function (frm) {\n"
+        "            if (frm.is_new()) return;\n"
+        "\n"
+        "            frappe.call({\n"
+        f"                method: {method},\n"
+        "                args: { doctype: frm.doctype, name: frm.docname },\n"
+        "                callback: function (r) {\n"
+        "                    var configs = r.message || [];\n"
+        "                    if (!configs.length) return;\n"
+        "\n"
+        "                    if (configs.length === 1) {\n"
+        "                        frm.add_custom_button(__('View Ledger'), function () {\n"
+        "                            _lgl_open(configs[0].config_name, frm.docname);\n"
+        "                        });\n"
+        "                    } else {\n"
+        "                        configs.forEach(function (cfg) {\n"
+        "                            frm.add_custom_button(cfg.config_label, function () {\n"
+        "                                _lgl_open(cfg.config_name, frm.docname);\n"
+        "                            }, __('Ledger'));\n"
+        "                        });\n"
+        "                    }\n"
+        "                }\n"
+        "            });\n"
+        "        }\n"
+        "    });\n"
+        "\n"
+        "    function _lgl_open(cfg, rec) {\n"
+        f"        var url = '{report_url}?ledger_config=' +\n"
+        "            encodeURIComponent(cfg) + '&source_name=' + encodeURIComponent(rec);\n"
+        "        window.open(url, '_blank');\n"
+        "    }\n"
+        "})();\n"
+    )
