@@ -430,23 +430,47 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
         if df.fieldtype == "Link"
     ]
 
-    posting_date_fields = [
-        {"value": df.fieldname, "label": f"{df.label or df.fieldname} ({df.fieldtype})"}
-        for df in parent_meta.fields
-        if df.fieldtype in DATE_FIELDTYPES
-    ]
+    # When child_table_field is set, also surface date/time/text fields from
+    # the child doctype so users can use e.g. a line-item date as posting date.
+    # Child fields are prefixed with "[Child]" to distinguish them visually.
+    child_meta = None
+    if child_table_field:
+        child_df_meta = parent_meta.get_field(child_table_field)
+        if child_df_meta and child_df_meta.fieldtype == "Table":
+            child_meta = frappe.get_meta(child_df_meta.options)
 
-    posting_time_fields = [
-        {"value": df.fieldname, "label": f"{df.label or df.fieldname} ({df.fieldtype})"}
-        for df in parent_meta.fields
-        if df.fieldtype in TIME_FIELDTYPES
-    ]
+    def _date_fields_from(meta, prefix=""):
+        return [
+            {"value": df.fieldname,
+             "label": f"{prefix}{df.label or df.fieldname} ({df.fieldtype})"}
+            for df in meta.fields
+            if df.fieldtype in DATE_FIELDTYPES
+        ]
 
-    narration_fields = [
-        {"value": df.fieldname, "label": f"{df.label or df.fieldname} ({df.fieldtype})"}
-        for df in parent_meta.fields
-        if df.fieldtype in TEXT_FIELDTYPES
-    ]
+    def _time_fields_from(meta, prefix=""):
+        return [
+            {"value": df.fieldname,
+             "label": f"{prefix}{df.label or df.fieldname} ({df.fieldtype})"}
+            for df in meta.fields
+            if df.fieldtype in TIME_FIELDTYPES
+        ]
+
+    def _text_fields_from(meta, prefix=""):
+        return [
+            {"value": df.fieldname,
+             "label": f"{prefix}{df.label or df.fieldname} ({df.fieldtype})"}
+            for df in meta.fields
+            if df.fieldtype in TEXT_FIELDTYPES
+        ]
+
+    posting_date_fields = _date_fields_from(parent_meta)
+    posting_time_fields = _time_fields_from(parent_meta)
+    narration_fields = _text_fields_from(parent_meta)
+
+    if child_meta:
+        posting_date_fields += _date_fields_from(child_meta, prefix="[Child] ")
+        posting_time_fields += _time_fields_from(child_meta, prefix="[Child] ")
+        narration_fields += _text_fields_from(child_meta, prefix="[Child] ")
 
     return {
         "tracked_fields": tracked_fields,

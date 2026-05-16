@@ -136,8 +136,17 @@ def _process_config(doc, config_name):
     if _signature_already_exists(config_name, doc.name, entry.change_signature):
         return
 
-    balance = _compute_current_balance(config_name, doc.name, posting_datetime) + delta
-    entry.balance = balance
+    # For "Track changes to a field", balance == value by definition:
+    # value stores the current field state, and balance is the canonical
+    # running snapshot of that state. Using prior_balance + delta would
+    # yield the wrong result whenever a config is newly activated for a
+    # document whose field is already non-zero (prior_balance = 0, so
+    # balance = delta instead of value).
+    entry.balance = flt(new_value)
+
+    if config.narration_field:
+        raw = (doc.get(config.narration_field) or "")
+        entry.narration = str(raw)[:500] if raw else None
 
     entry.insert(ignore_permissions=True)
     entry.submit()
