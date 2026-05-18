@@ -24,6 +24,11 @@
   "posting_date_field",
   "column_break_posting",
   "posting_time_field",
+  "section_type_2",
+  "balance_carrier_doctype",
+  "balance_field",
+  "column_break_type2",
+  "sources",
   "section_dimensions",
   "dimensions",
   "section_description",
@@ -46,9 +51,9 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Ledger Type",
-   "options": "Track changes to a field",
+   "options": "Track changes to a field\nTrack balance from transactions",
    "reqd": 1,
-   "description": "Determines how this ledger captures changes. 'Track changes to a field' watches a single numeric field on the source DocType. ('Track balance from transactions' ships in a later release.)"
+   "description": "Determines how this ledger captures changes. 'Track changes to a field' watches a single numeric field on the source DocType. 'Track balance from transactions' maintains a running balance on a carrier DocType driven by submitted transaction records."
   },
   {
    "default": "1",
@@ -71,17 +76,19 @@
   },
 
   {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
    "fieldname": "section_source",
    "fieldtype": "Section Break",
    "label": "Source"
   },
   {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
    "fieldname": "source_doctype",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Source DocType",
    "options": "DocType",
-   "reqd": 1,
    "description": "The DocType whose field changes drive ledger entries."
   },
   {
@@ -106,11 +113,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
    "fieldname": "tracked_field",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Tracked Field",
-   "reqd": 1,
    "description": "The numeric field whose changes are logged. Must be Currency, Int, or Float."
   },
   {
@@ -122,17 +130,19 @@
   },
 
   {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
    "fieldname": "section_posting",
    "fieldtype": "Section Break",
    "label": "Posting Date & Time",
    "description": "How should Ledgerly determine when each ledger entry was effective?"
   },
   {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
    "fieldname": "posting_date_source",
    "fieldtype": "Select",
    "label": "Posting Date Source",
    "options": "\nDocument modification time\nField on source DocType",
-   "reqd": 1,
    "description": "Pick where the posting datetime comes from. Use 'Document modification time' for masters that don't need retroactive dating. Use 'Field on source DocType' when the user-controlled measurement / transaction date matters (e.g. goat_weight_date, posting_date on a transaction)."
   },
   {
@@ -153,6 +163,42 @@
    "fieldtype": "Select",
    "label": "Posting Time Field",
    "description": "Optional: a Time field on the source DocType. Only useful when 'Posting Date Field' is a Date (not Datetime). If blank, time defaults to 00:00:00."
+  },
+
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "fieldname": "section_type_2",
+   "fieldtype": "Section Break",
+   "label": "Carrier & Sources"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "fieldname": "balance_carrier_doctype",
+   "fieldtype": "Link",
+   "label": "Balance Carrier DocType",
+   "options": "DocType",
+   "description": "The DocType that holds the running balance field (e.g. Customer, Project)."
+  },
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.balance_carrier_doctype",
+   "fieldname": "balance_field",
+   "fieldtype": "Select",
+   "label": "Balance Field",
+   "description": "The numeric field on the carrier DocType that holds the running balance."
+  },
+  {
+   "fieldname": "column_break_type2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "fieldname": "sources",
+   "fieldtype": "Table",
+   "label": "Transaction Sources",
+   "options": "Ledger Source",
+   "description": "Each row defines a DocType whose submissions add to or deduct from the carrier's balance."
   },
 
   {

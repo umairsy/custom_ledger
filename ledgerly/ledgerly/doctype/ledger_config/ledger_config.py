@@ -40,16 +40,19 @@ class LedgerConfig(Document):
     """
 
     def validate(self):
-        self._validate_source_doctype()
-        self._validate_value_source_mode()
-        self._validate_child_table_field()
-        self._validate_tracked_field()
-        self._validate_narration_field()
-        self._validate_posting_date_source()
-        self._validate_posting_date_field()
-        self._validate_posting_time_field()
-        self._validate_dimensions()
-        self._enrich_dimensions()
+        if self.ledger_type == "Track balance from transactions":
+            self._validate_type_2()
+        else:
+            self._validate_source_doctype()
+            self._validate_value_source_mode()
+            self._validate_child_table_field()
+            self._validate_tracked_field()
+            self._validate_narration_field()
+            self._validate_posting_date_source()
+            self._validate_posting_date_field()
+            self._validate_posting_time_field()
+            self._validate_dimensions()
+            self._enrich_dimensions()
 
     def on_update(self):
         old = self.get_doc_before_save()
@@ -292,6 +295,135 @@ class LedgerConfig(Document):
             df = parent_meta.get_field(row.dimension_fieldname)
             row.label = df.label or df.fieldname
             row.link_doctype = df.options
+
+    def _validate_type_2(self):
+        """Validate a 'Track balance from transactions' Ledger Config."""
+        # Carrier doctype
+        if not self.balance_carrier_doctype:
+            frappe.throw(_("Balance Carrier DocType is required for 'Track balance from transactions'."))
+        if not frappe.db.exists("DocType", self.balance_carrier_doctype):
+            frappe.throw(
+                _("Balance Carrier DocType '{0}' does not exist.").format(self.balance_carrier_doctype)
+            )
+        carrier_meta = frappe.get_meta(self.balance_carrier_doctype)
+        if carrier_meta.istable:
+            frappe.throw(_("Balance Carrier DocType cannot be a child table."))
+
+        # Balance field on carrier
+        if not self.balance_field:
+            frappe.throw(_("Balance Field is required for 'Track balance from transactions'."))
+        balance_df = carrier_meta.get_field(self.balance_field)
+        if not balance_df:
+            frappe.throw(
+                _("Balance Field '{0}' does not exist on {1}.").format(
+                    self.balance_field, self.balance_carrier_doctype
+                )
+            )
+        if balance_df.fieldtype not in NUMERIC_FIELDTYPES:
+            frappe.throw(
+                _("Balance Field '{0}' on {1} must be numeric (got {2}).").format(
+                    self.balance_field, self.balance_carrier_doctype, balance_df.fieldtype
+                )
+            )
+
+        # Sources
+        if not self.sources:
+            frappe.throw(_("At least one Transaction Source is required."))
+
+        seen_pairs: set[tuple] = set()
+        for row in self.sources:
+            if not row.source_doctype:
+                frappe.throw(_("Source DocType is required for every Transaction Source row."))
+            if not frappe.db.exists("DocType", row.source_doctype):
+                frappe.throw(
+                    _("Transaction Source DocType '{0}' does not exist.").format(row.source_doctype)
+                )
+
+            src_meta = frappe.get_meta(row.source_doctype)
+
+            # Amount field
+            if not row.source_field:
+                frappe.throw(
+                    _("Amount Field is required for source '{0}'.").format(row.source_doctype)
+                )
+            amount_df = src_meta.get_field(row.source_field)
+            if not amount_df:
+                frappe.throw(
+                    _("Amount Field '{0}' does not exist on {1}.").format(
+                        row.source_field, row.source_doctype
+                    )
+                )
+            if amount_df.fieldtype not in NUMERIC_FIELDTYPES:
+                frappe.throw(
+                    _("Amount Field '{0}' on {1} must be numeric (got {2}).").format(
+                        row.source_field, row.source_doctype, amount_df.fieldtype
+                    )
+                )
+
+            # Direction
+            if row.direction not in ("ADD", "DEDUCT"):
+                frappe.throw(
+                    _("Direction must be 'ADD' or 'DEDUCT' for source '{0}'.").format(
+                        row.source_doctype
+                    )
+                )
+
+            # Carrier link field
+            if not row.carrier_link_field:
+                frappe.throw(
+                    _("Carrier Link Field is required for source '{0}'.").format(row.source_doctype)
+                )
+            link_df = src_meta.get_field(row.carrier_link_field)
+            if not link_df:
+                frappe.throw(
+                    _("Carrier Link Field '{0}' does not exist on {1}.").format(
+                        row.carrier_link_field, row.source_doctype
+                    )
+                )
+            if link_df.fieldtype != "Link":
+                frappe.throw(
+                    _("Carrier Link Field '{0}' on {1} must be a Link field (got {2}).").format(
+                        row.carrier_link_field, row.source_doctype, link_df.fieldtype
+                    )
+                )
+            if link_df.options != self.balance_carrier_doctype:
+                frappe.throw(
+                    _("Carrier Link Field '{0}' on {1} must link to '{2}' (links to '{3}').").format(
+                        row.carrier_link_field,
+                        row.source_doctype,
+                        self.balance_carrier_doctype,
+                        link_df.options,
+                    )
+                )
+
+            # Posting date field
+            if not row.posting_date_field:
+                frappe.throw(
+                    _("Posting Date Field is required for source '{0}'.").format(row.source_doctype)
+                )
+            date_df = src_meta.get_field(row.posting_date_field)
+            if not date_df:
+                frappe.throw(
+                    _("Posting Date Field '{0}' does not exist on {1}.").format(
+                        row.posting_date_field, row.source_doctype
+                    )
+                )
+            if date_df.fieldtype not in DATE_FIELDTYPES:
+                frappe.throw(
+                    _("Posting Date Field '{0}' on {1} must be Date or Datetime (got {2}).").format(
+                        row.posting_date_field, row.source_doctype, date_df.fieldtype
+                    )
+                )
+
+            # No duplicate source_doctype + direction pairs
+            pair = (row.source_doctype, row.direction)
+            if pair in seen_pairs:
+                frappe.throw(
+                    _("Duplicate Transaction Source: '{0}' with direction '{1}'.").format(
+                        row.source_doctype, row.direction
+                    )
+                )
+            seen_pairs.add(pair)
 
     # ------------------------------------------------------------------
     # Runtime helpers — used by the engine in PR #5
