@@ -121,10 +121,24 @@ ledgerly.fetch_field_options = function (frm) {
                 return;
             }
 
-            const set_select = (fieldname, values) => {
-                const options = ["", ...values.map((f) => f.value)];
-                frm.set_df_property(fieldname, "options", options.join("\n"));
+            const set_select = (fieldname, options_list) => {
+                const values = ["", ...options_list.map((f) => f.value)];
+                frm.set_df_property(fieldname, "options", values.join("\n"));
                 frm.refresh_field(fieldname);
+
+                // Override <option> display text to show human-readable labels
+                // while keeping the raw fieldname as the stored value.
+                const field = frm.get_field(fieldname);
+                if (field && field.$input) {
+                    const label_map = {};
+                    options_list.forEach(function (f) {
+                        label_map[f.value] = f.label || f.value;
+                    });
+                    field.$input.find("option").each(function () {
+                        const val = $(this).val();
+                        if (val && label_map[val]) $(this).text(label_map[val]);
+                    });
+                }
             };
 
             set_select("tracked_field", r.message.tracked_fields);

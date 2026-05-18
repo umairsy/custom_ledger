@@ -364,6 +364,22 @@ class LedgerConfig(Document):
 # ------------------------------------------------------------------
 
 
+def _disambiguate(items: list[dict]) -> list[dict]:
+    """Append ' (fieldname)' to the label of any item whose label is not unique in the list."""
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item["label"]] = counts.get(item["label"], 0) + 1
+    return [
+        {
+            "value": item["value"],
+            "label": (
+                f"{item['label']} ({item['value']})" if counts[item["label"]] > 1 else item["label"]
+            ),
+        }
+        for item in items
+    ]
+
+
 @frappe.whitelist()
 def get_field_options(source_doctype: str, child_table_field: str | None = None) -> dict:
     """Return field-name options for the Ledger Config form's selects.
@@ -380,8 +396,10 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
 
     Returns:
         Dict with keys ``tracked_fields``, ``child_table_fields``,
-        ``dimension_fields``, ``posting_date_fields``, ``posting_time_fields``.
-        Each value is a list of ``{value, label}`` dicts.
+        ``dimension_fields``, ``posting_date_fields``, ``posting_time_fields``,
+        ``narration_fields``.  Each value is a list of ``{value, label}`` dicts
+        where ``value`` is the fieldname and ``label`` is the human-readable
+        display text (with ``(fieldname)`` suffix when labels collide).
     """
     # Permission check: caller must be able to read the source DocType's meta.
     if not frappe.has_permission("DocType", "read", source_doctype):
@@ -393,6 +411,7 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
         "dimension_fields": [],
         "posting_date_fields": [],
         "posting_time_fields": [],
+        "narration_fields": [],
     }
     if not frappe.db.exists("DocType", source_doctype):
         return empty
@@ -409,76 +428,56 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
     else:
         tracked_source_meta = parent_meta
 
-    tracked_fields = [
-        {"value": df.fieldname, "label": f"{df.label or df.fieldname} ({df.fieldtype})"}
+    tracked_fields = _disambiguate([
+        {"value": df.fieldname, "label": df.label or df.fieldname}
         for df in tracked_source_meta.fields
         if df.fieldtype in NUMERIC_FIELDTYPES
-    ]
+    ])
 
-    child_table_fields = [
+    child_table_fields = _disambiguate([
         {"value": df.fieldname, "label": f"{df.label or df.fieldname} \u2192 {df.options}"}
         for df in parent_meta.fields
         if df.fieldtype == "Table"
-    ]
+    ])
 
-    dimension_fields = [
-        {
-            "value": df.fieldname,
-            "label": f"{df.label or df.fieldname} \u2192 {df.options}",
-        }
+    dimension_fields = _disambiguate([
+        {"value": df.fieldname, "label": f"{df.label or df.fieldname} \u2192 {df.options}"}
         for df in parent_meta.fields
         if df.fieldtype == "Link"
-    ]
+    ])
 
     # When child_table_field is set, also surface date/time/text fields from
     # the child doctype so users can use e.g. a line-item date as posting date.
-    # Child fields are prefixed with "[Child]" to distinguish them visually.
+    # Child fields are prefixed with "[Child] " to distinguish them visually.
     child_meta = None
     if child_table_field:
         child_df_meta = parent_meta.get_field(child_table_field)
         if child_df_meta and child_df_meta.fieldtype == "Table":
             child_meta = frappe.get_meta(child_df_meta.options)
 
-    def _date_fields_from(meta, prefix=""):
+    def _fields_from(meta, fieldtypes, prefix=""):
         return [
-            {"value": df.fieldname,
-             "label": f"{prefix}{df.label or df.fieldname} ({df.fieldtype})"}
+            {"value": df.fieldname, "label": f"{prefix}{df.label or df.fieldname}"}
             for df in meta.fields
-            if df.fieldtype in DATE_FIELDTYPES
+            if df.fieldtype in fieldtypes
         ]
 
-    def _time_fields_from(meta, prefix=""):
-        return [
-            {"value": df.fieldname,
-             "label": f"{prefix}{df.label or df.fieldname} ({df.fieldtype})"}
-            for df in meta.fields
-            if df.fieldtype in TIME_FIELDTYPES
-        ]
-
-    def _text_fields_from(meta, prefix=""):
-        return [
-            {"value": df.fieldname,
-             "label": f"{prefix}{df.label or df.fieldname} ({df.fieldtype})"}
-            for df in meta.fields
-            if df.fieldtype in TEXT_FIELDTYPES
-        ]
-
-    posting_date_fields = _date_fields_from(parent_meta)
-    posting_time_fields = _time_fields_from(parent_meta)
-    narration_fields = _text_fields_from(parent_meta)
+    posting_date_fields = _fields_from(parent_meta, DATE_FIELDTYPES)
+    posting_time_fields = _fields_from(parent_meta, TIME_FIELDTYPES)
+    narration_fields = _fields_from(parent_meta, TEXT_FIELDTYPES)
 
     if child_meta:
-        posting_date_fields += _date_fields_from(child_meta, prefix="[Child] ")
-        posting_time_fields += _time_fields_from(child_meta, prefix="[Child] ")
-        narration_fields += _text_fields_from(child_meta, prefix="[Child] ")
+        posting_date_fields += _fields_from(child_meta, DATE_FIELDTYPES, prefix="[Child] ")
+        posting_time_fields += _fields_from(child_meta, TIME_FIELDTYPES, prefix="[Child] ")
+        narration_fields += _fields_from(child_meta, TEXT_FIELDTYPES, prefix="[Child] ")
 
     return {
         "tracked_fields": tracked_fields,
         "child_table_fields": child_table_fields,
         "dimension_fields": dimension_fields,
-        "posting_date_fields": posting_date_fields,
-        "posting_time_fields": posting_time_fields,
-        "narration_fields": narration_fields,
+        "posting_date_fields": _disambiguate(posting_date_fields),
+        "posting_time_fields": _disambiguate(posting_time_fields),
+        "narration_fields": _disambiguate(narration_fields),
     }
 
 
