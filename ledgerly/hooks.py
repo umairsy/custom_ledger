@@ -21,6 +21,7 @@ doc_events = {
     "*": {
         "on_update": "ledgerly.core.engine_value_snapshot.capture_change",
         "on_submit": "ledgerly.core.engine_value_snapshot.capture_change",
+        "on_load": "ledgerly.core.balance_recompute.recompute_on_load",
     },
     "Ledger Config": {
         "on_update": "ledgerly.core.engine_value_snapshot.invalidate_config_cache",
