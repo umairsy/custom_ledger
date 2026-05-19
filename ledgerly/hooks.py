@@ -20,12 +20,22 @@ app_license = "TBD"
 doc_events = {
     "*": {
         "on_update": "ledgerly.core.engine_value_snapshot.capture_change",
-        "on_submit": "ledgerly.core.engine_value_snapshot.capture_change",
+        "on_submit": [
+            "ledgerly.core.engine_value_snapshot.capture_change",
+            "ledgerly.core.engine_transactional.capture_submit",
+        ],
+        "on_cancel": "ledgerly.core.engine_transactional.capture_cancel",
         "on_load": "ledgerly.core.balance_recompute.recompute_on_load",
     },
     "Ledger Config": {
-        "on_update": "ledgerly.core.engine_value_snapshot.invalidate_config_cache",
-        "on_trash": "ledgerly.core.engine_value_snapshot.invalidate_config_cache",
+        "on_update": [
+            "ledgerly.core.engine_value_snapshot.invalidate_config_cache",
+            "ledgerly.core.engine_transactional.invalidate_feeder_cache",
+        ],
+        "on_trash": [
+            "ledgerly.core.engine_value_snapshot.invalidate_config_cache",
+            "ledgerly.core.engine_transactional.invalidate_feeder_cache",
+        ],
     },
     "Custom Field": {
         "before_delete": "ledgerly.core.field_protection.block_if_referenced",
@@ -37,4 +47,7 @@ doc_events = {
 # Clear Ledgerly's engine cache after every ``bench migrate``. Prevents the
 # "ledger entries stop being created after deploy" symptom that happens when
 # Redis still holds pre-deploy active-config lookups.
-after_migrate = ["ledgerly.core.cache_utils.clear_engine_cache"]
+after_migrate = [
+    "ledgerly.core.cache_utils.clear_engine_cache",
+    "ledgerly.core.engine_transactional.invalidate_feeder_cache",
+]
