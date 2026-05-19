@@ -152,7 +152,20 @@ ledgerly.fetch_carrier_fields = function (frm) {
         args: { source_doctype: frm.doc.balance_carrier_doctype },
         callback: function (r) {
             if (!r.message) return;
-            const options_list = r.message.tracked_fields;
+            const options_list = r.message.balance_display_fields || [];
+
+            if (options_list.length === 0) {
+                frappe.show_alert({
+                    message: __(
+                        "No suitable field found on {0}. Add a read-only Currency, " +
+                        "Float, or Int field on {0} via Customize Form, then re-pick " +
+                        "the carrier.",
+                        [frm.doc.balance_carrier_doctype]
+                    ),
+                    indicator: "orange",
+                });
+            }
+
             const values = ["", ...options_list.map((f) => f.value)];
             frm.set_df_property("balance_field", "options", values.join("\n"));
             frm.refresh_field("balance_field");

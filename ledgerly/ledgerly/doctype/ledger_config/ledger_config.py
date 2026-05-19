@@ -527,11 +527,14 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
             child table instead of the parent.
 
     Returns:
-        Dict with keys ``tracked_fields``, ``child_table_fields``,
-        ``dimension_fields``, ``posting_date_fields``, ``posting_time_fields``,
-        ``narration_fields``.  Each value is a list of ``{value, label}`` dicts
-        where ``value`` is the fieldname and ``label`` is the human-readable
-        display text (with ``(fieldname)`` suffix when labels collide).
+        Dict with keys ``tracked_fields``, ``balance_display_fields``,
+        ``child_table_fields``, ``dimension_fields``, ``posting_date_fields``,
+        ``posting_time_fields``, ``narration_fields``.  Each value is a list of
+        ``{value, label}`` dicts where ``value`` is the fieldname and ``label``
+        is the human-readable display text (with ``(fieldname)`` suffix when
+        labels collide).  ``tracked_fields`` contains editable numeric fields
+        (for Type 1); ``balance_display_fields`` contains read-only numeric
+        fields (for Type 2 balance carrier).
     """
     # Permission check: caller must be able to read the source DocType's meta.
     if not frappe.has_permission("DocType", "read", source_doctype):
@@ -539,6 +542,7 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
 
     empty = {
         "tracked_fields": [],
+        "balance_display_fields": [],
         "child_table_fields": [],
         "dimension_fields": [],
         "posting_date_fields": [],
@@ -560,11 +564,18 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
     else:
         tracked_source_meta = parent_meta
 
-    tracked_fields = _disambiguate([
-        {"value": df.fieldname, "label": df.label or df.fieldname}
-        for df in tracked_source_meta.fields
-        if df.fieldtype in NUMERIC_FIELDTYPES
-    ])
+    _tracked_raw = []
+    _balance_raw = []
+    for df in tracked_source_meta.fields:
+        if df.fieldtype not in NUMERIC_FIELDTYPES:
+            continue
+        option = {"value": df.fieldname, "label": df.label or df.fieldname}
+        if df.read_only:
+            _balance_raw.append(option)
+        else:
+            _tracked_raw.append(option)
+    tracked_fields = _disambiguate(_tracked_raw)
+    balance_display_fields = _disambiguate(_balance_raw)
 
     child_table_fields = _disambiguate([
         {"value": df.fieldname, "label": f"{df.label or df.fieldname} \u2192 {df.options}"}
@@ -605,6 +616,7 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
 
     return {
         "tracked_fields": tracked_fields,
+        "balance_display_fields": balance_display_fields,
         "child_table_fields": child_table_fields,
         "dimension_fields": dimension_fields,
         "posting_date_fields": _disambiguate(posting_date_fields),
