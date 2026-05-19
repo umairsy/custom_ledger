@@ -12,6 +12,9 @@
   "source_doctype",
   "column_break_link",
   "source_name",
+  "source_field",
+  "carrier_doctype",
+  "carrier_name",
   "section_posting",
   "posting_date",
   "posting_time",
@@ -38,6 +41,8 @@
   "narration",
   "section_internal",
   "change_signature",
+  "is_reversal",
+  "reverses",
   "amended_from"
  ],
  "fields": [
@@ -77,6 +82,30 @@
    "options": "source_doctype",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "source_field",
+   "fieldtype": "Data",
+   "label": "Source Field",
+   "read_only": 1,
+   "description": "Fieldname on the source document whose value drove this entry (Type 2 only)."
+  },
+  {
+   "fieldname": "carrier_doctype",
+   "fieldtype": "Link",
+   "label": "Carrier DocType",
+   "options": "DocType",
+   "read_only": 1,
+   "description": "DocType of the balance carrier (Type 2 only)."
+  },
+  {
+   "fieldname": "carrier_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Carrier",
+   "options": "carrier_doctype",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Carrier document whose running balance this entry affects (Type 2 only)."
   },
   {
    "fieldname": "section_posting",
@@ -251,6 +280,23 @@
    "label": "Change Signature",
    "read_only": 1,
    "description": "Hash of (source_name, posting_datetime, value) used by the engine to detect duplicates during reposting."
+  },
+  {
+   "default": "0",
+   "fieldname": "is_reversal",
+   "fieldtype": "Check",
+   "label": "Is Reversal",
+   "read_only": 1,
+   "description": "Set by the engine when this entry reverses a previously submitted entry on cancel."
+  },
+  {
+   "fieldname": "reverses",
+   "fieldtype": "Link",
+   "label": "Reverses Entry",
+   "options": "Ledger Entry",
+   "read_only": 1,
+   "search_index": 1,
+   "description": "Points to the original entry this reversal undoes (Type 2 cancel only)."
   },
   {
    "fieldname": "amended_from",
