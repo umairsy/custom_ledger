@@ -28,6 +28,16 @@ frappe.ui.form.on("Ledger Config", {
                 );
             });
         }
+
+        // Type 2 only: re-populate balance_field options on form load so the
+        // saved value displays correctly. The balance_carrier_doctype change
+        // handler doesn't fire on load.
+        if (
+            frm.doc.ledger_type === "Track balance from transactions" &&
+            frm.doc.balance_carrier_doctype
+        ) {
+            ledgerly.fetch_carrier_fields(frm);
+        }
     },
 
     ledger_type: function (frm) {
