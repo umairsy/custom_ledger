@@ -1,99 +1,114 @@
 # Ledgerly
 
-**Configurable custom ledgers for Frappe.** Define your own ledgers — like Stock Ledger or GL Entry — without writing code. Drive entries from field changes on any DocType, or from transactions feeding a running balance.
+[![Frappe v15](https://img.shields.io/badge/Frappe-v15-blue.svg)](https://frappeframework.com/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: TBD](https://img.shields.io/badge/License-TBD-lightgrey.svg)](#license)
 
-## Why Ledgerly?
+### Configurable ledgers for any DocType — no code required
 
-In ERPNext, the Stock Ledger and General Ledger are powerful but **hardcoded**. If you want a similar audit trail for any other quantity — the weight of a goat, the credit balance of a customer, the budget burn of a project — you have to write a Frappe app from scratch.
+*Turn changes on any Frappe/ERPNext DocType into a proper ledger, with running balances, an opening/closing report, and an analytics dashboard. You describe what to track in a Ledger Config; Ledgerly generates everything else.*
 
-Ledgerly fills that gap. Pick a Ledger Type, configure a Ledger Config, and Ledgerly will:
+[Quick Start](#quick-start) • [User Manual](USER_MANUAL.md) • [Ledger Types](#ledger-types) • [How it works](#how-it-works)
 
-- Capture a ledger entry every time the tracked quantity changes
-- Maintain a running balance, scoped to each source record
-- Repost balances correctly when back-dated entries are inserted
-- Give you a built-in report with opening / closing balances and dimensional filters
+---
+
+## Why Ledgerly
+
+ERPNext's Stock Ledger and General Ledger are powerful, but they're hardcoded. If you want the same kind of dated, auditable, running-balance history for anything else — a member's weight, a customer's prepaid credit, a project's budget burn — you normally have to build a Frappe app from scratch.
+
+Ledgerly closes that gap. Define a **Ledger Config**, and it automatically maintains the entries, the report, the dashboard, and a per-record drill-in button. Add a new kind of ledger by creating a config, never by writing code.
+
+## Features
+
+- **Two ledger types** — track a single field as it changes, or maintain a running balance fed by multiple transaction types.
+- **Automatic ledger entries** — submitted, immutable, with value, delta, and running balance per entry.
+- **Custom Ledger report** — opening balance, every movement, closing balance, color-coded deltas, narration, and dimensional columns driven by your config.
+- **Auto-generated dashboard** — closing balance, net change, totals, record count, a balance-over-time chart, and group breakdowns, all filterable.
+- **View Ledger button** — one click from any source record to its pre-filtered ledger.
+- **Dimensions** — slice reports and charts by any link fields you nominate (diet plan, trainer, warehouse, item group, etc.).
+- **Config-driven throughout** — the report and dashboard adapt to each config automatically; there is no per-ledger code.
 
 ## Ledger Types
 
-Ledgerly supports multiple ledger patterns through a **Ledger Type** selector on each Ledger Config:
+| Type | What it watches | Example |
+| --- | --- | --- |
+| **Track changes to a field** | A single numeric field on one DocType; every change logs an entry. | A gym member's weight over time. |
+| **Track balance from transactions** | Multiple feeder DocTypes that add to or deduct from a balance held on a separate carrier DocType. | A customer's credit balance, fed by Credit Purchases and Invoices. |
 
-| # | Ledger Type | Status | What it does |
-|---|---|---|---|
-| 1 | **Track changes to a field** | Shipped | Watches a single numeric field on a source DocType (or a sum across its child rows). Every change creates an entry. Use cases: goat weight, vehicle odometer, employee rating. |
-| 2 | **Track balance from transactions** | In progress | Watches multiple feeder DocTypes. Some fields add to a balance; others deduct. Use cases: customer credit balance, gift cards, loyalty points. |
-| 3 | Stock-Ledger-style (qty + value) | Future | Quantity and value tracked together, like ERPNext's Stock Ledger. |
-| 4 | GL-style (debit + credit) | Future | Double-entry posting. |
+## How it works
 
-## Use case 1: Goat-farm growth tracking (Track changes to a field)
+1. **Create a Ledger Config.** Pick a ledger type, the DocType(s) to watch, the numeric field, the posting date, and any dimensions.
+2. **Ledgerly captures changes.** For *Track changes to a field*, updating the tracked field creates an entry. For *Track balance from transactions*, submitting a feeder creates an entry and updates the carrier's balance.
+3. **Read the ledger.** Open the Custom Ledger report or the dashboard, or click **View Ledger** on any record.
 
-1. Add a custom field `goat_weight` (Float) to Item.
-2. Add a custom field `weight_measurement_date` (Date or Datetime) to Item.
-3. Create a Ledger Config: type = `Track changes to a field`, source = `Item`, tracked field = `goat_weight`, posting date field = `weight_measurement_date`, dimensions = `item_group`, `goat_breed`.
-4. Every time someone updates `goat_weight` on an Item, a Ledger Entry is automatically created with the new value, the delta vs prior, and a running balance per goat.
-5. View the Ledgerly Report (coming in PR #7), filtered by individual goat, breed, or warehouse.
+For step-by-step setup of both ledger types, see the [User Manual](USER_MANUAL.md).
 
-## Use case 2: Customer credit balance (Track balance from transactions — in progress)
+## Requirements
 
-1. Add a custom DocType `Credit Top-Up` with `customer` (Link to Customer) and `credits_purchased` (Currency).
-2. Add a custom field `credits_used` (Currency) to Sales Invoice.
-3. Create a Ledger Config: type = `Track balance from transactions`, balance carrier = `Customer.credit_balance`, ADD source = `Credit Top-Up.credits_purchased`, DEDUCT source = `Sales Invoice.credits_used`.
-4. Each customer's `credit_balance` is computed live from their feeder transactions. The Ledgerly Report shows opening balance, every top-up and usage, and closing balance per customer.
-
-## Status — progress and roadmap
-
-### Completed (PRs #1–#6)
-- App scaffold, CI, Semgrep, Frappe Cloud install
-- Ledger Dimension (child DocType for declaring reporting dimensions)
-- Ledger Config (with dynamic field selectors, child-table mode, posting datetime config, progressive disclosure)
-- Ledger Entry (submittable, indexed, 5 dimension columns, idempotent via change signatures)
-- "Track changes to a field" engine — hooked into every doc save; auto-creates entries on tracked-field changes; cached active-config lookup for near-zero per-save cost
-- Ledger Type field with backfill for existing configs
-- `after_migrate` cache clear — fixes the "needed to re-save config after deploy" bug for all future deploys
-
-### In progress / next up
-- **PR #7:** Ledgerly Report — from-date, to-date, opening, closing, dimensional columns. Type-agnostic (works for both ledger types).
-- **PR #8:** "Track balance from transactions" config — new schema fields (balance carrier, ADD/DEDUCT sources), validation, client script, all guarded behind the new ledger type.
-- **PR #9:** "Track balance from transactions" engine — hooks into feeder DocTypes' `on_submit` / `on_cancel`, creates entries with positive/negative deltas scoped to the balance carrier.
-- **PR #10:** Back-dated reposting — reorders balances correctly when an entry is inserted between two existing entries. Background job.
-- **PR #11:** Workspace + onboarding — sidebar shortcuts and a guided "create your first ledger" flow for new users.
-- **PR #12:** ERPNext integration buttons (Stock Recon / Journal Entry from a Ledger Config), cancellation propagation, README polish, marketplace prep.
+- Frappe Framework v15
+- Python 3.10, 3.11, or 3.12
 
 ## Installation
 
-### Prerequisites
-- Frappe Bench (Frappe Framework v15)
-- Python 3.10, 3.11, or 3.12
+### On a local bench
 
-### Install on a local bench
+```bash
+cd ~/frappe-bench
+bench get-app ledgerly https://github.com/umairsy/ledgerly
+bench --site <your-site> install-app ledgerly
+bench --site <your-site> migrate
+```
 
-    cd ~/frappe-bench
-    bench get-app ledgerly https://github.com/<owner>/ledgerly
-    bench --site <your-site> install-app ledgerly
-    bench --site <your-site> migrate
-
-### Install on Frappe Cloud
+### On Frappe Cloud
 
 1. Push this repository to your GitHub account.
-2. In Frappe Cloud, go to your bench → **Apps** → **Add App** → choose **GitHub** → select this repository.
-3. Deploy.
+2. In Frappe Cloud, open your bench → **Apps** → **Add App** → **GitHub**, and select this repository.
+3. Deploy. Frappe Cloud reads `pyproject.toml` to verify version compatibility.
+
+## Quick Start
+
+Track a single field as it changes:
+
+1. Open **Ledger Config → New**.
+2. Set **Ledger Type** to *Track changes to a field*.
+3. Set **Source DocType** (e.g. *Gym Member*) and **Tracked Field** (e.g. *Weight*).
+4. Set **Posting Date Field** (e.g. *weight_reading_date*).
+5. Save, then update the tracked field on a record — a ledger entry appears automatically.
+6. Open the **Custom Ledger** report (or click **View Ledger** on the record) to see opening balance, movements, and closing balance.
+
+Maintain a running balance from transactions:
+
+1. Add a read-only Currency field to the carrier DocType (e.g. *Credit Balance* on *Customer*).
+2. Create a Ledger Config with **Ledger Type** = *Track balance from transactions*.
+3. Set **Balance Carrier DocType** and **Balance Field**.
+4. Add **Transaction Sources** — one row per feeder, each with an amount field, direction (ADD/DEDUCT), and the link field pointing at the carrier.
+5. Submit a feeder — the carrier's balance updates and an entry is logged.
+
+## Documentation
+
+- [User Manual](USER_MANUAL.md) — full feature guide with both use cases, the report, and the dashboard.
 
 ## Compatibility
 
 | Frappe version | Status |
-| -------------- | ------ |
-| v15            | Targeted (primary) |
-| v16            | Install path open; workspace/desktop icon support in PR #11 |
+| --- | --- |
+| v15 | Targeted (primary) |
+| v16 | Install path open |
 
 ## Development
 
 Run the test suite:
 
-    bench --site <your-site> set-config allow_tests true
-    bench --site <your-site> run-tests --app ledgerly
+```bash
+bench --site <your-site> set-config allow_tests true
+bench --site <your-site> run-tests --app ledgerly
+```
+
+Every pull request runs unit tests and a Semgrep scan against Frappe's security rules.
 
 ## License
 
-TBD — a formal open-source license will be selected before the first stable release.
+To be finalized before the first stable release.
 
 ## Contributors
 
