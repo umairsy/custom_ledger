@@ -90,10 +90,12 @@ Maintain a running balance from transactions:
 
 ## Compatibility
 
-| Frappe version | Status |
-| --- | --- |
-| v15 | Targeted (primary) |
-| v16 | Install path open |
+| Frappe version | Status | Branch |
+| --- | --- | --- |
+| v15 | Targeted (primary) | `main` (this branch) |
+| v16 | Maintained | [`version-16`](https://github.com/umairsy/ledgerly/tree/version-16) |
+
+See [docs/VERSIONING.md](docs/VERSIONING.md) for the branch model and how changes are kept in sync across versions.
 
 ## Development
 
