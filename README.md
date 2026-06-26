@@ -1,7 +1,7 @@
 # Ledgerly
 
-[![Frappe v15](https://img.shields.io/badge/Frappe-v15-blue.svg)](https://frappeframework.com/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Frappe v16](https://img.shields.io/badge/Frappe-v16-blue.svg)](https://frappeframework.com/)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 [![License: TBD](https://img.shields.io/badge/License-TBD-lightgrey.svg)](#license)
 
 ### Configurable ledgers for any DocType — no code required
@@ -45,8 +45,8 @@ For step-by-step setup of both ledger types, see the [User Manual](USER_MANUAL.m
 
 ## Requirements
 
-- Frappe Framework v15
-- Python 3.10, 3.11, or 3.12
+- Frappe Framework v16
+- Python 3.14
 
 ## Installation
 
@@ -92,8 +92,8 @@ Maintain a running balance from transactions:
 
 | Frappe version | Status | Branch |
 | --- | --- | --- |
-| v15 | Targeted (primary) | `main` (this branch) |
-| v16 | Maintained | [`version-16`](https://github.com/umairsy/ledgerly/tree/version-16) |
+| v16 | Targeted (primary) | `version-16` (this branch) |
+| v15 | Maintained | [`main`](https://github.com/umairsy/ledgerly/tree/main) |
 
 See [docs/VERSIONING.md](docs/VERSIONING.md) for the branch model and how changes are kept in sync across versions.
 
