@@ -12,6 +12,7 @@
   "is_active",
   "column_break_header",
   "track_balance",
+  "allow_negative_balance",
   "section_source",
   "source_doctype",
   "value_source_mode",
@@ -73,6 +74,13 @@
    "fieldtype": "Check",
    "label": "Track Running Balance",
    "description": "If unchecked, entries are created but no running balance is maintained."
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_negative_balance",
+   "fieldtype": "Check",
+   "label": "Allow Negative Balance",
+   "description": "If unchecked, a change or transaction that would drive the balance below zero is blocked at entry time with a validation error. Check to permit negative balances."
   },
 
   {

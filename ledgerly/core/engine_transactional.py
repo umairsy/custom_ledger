@@ -18,7 +18,10 @@ handles.
 from __future__ import annotations
 
 import frappe
+from frappe import _
 from frappe.utils import flt, get_datetime
+
+from ledgerly.core.exceptions import NegativeBalanceError
 
 
 _FEEDER_CACHE_KEY = "ledgerly:type2_feeders"
@@ -36,6 +39,9 @@ def capture_submit(doc, method=None):
 
     try:
         _process_submit(doc)
+    except NegativeBalanceError:
+        # Deliberate block — must propagate to stop the feeder submit.
+        raise
     except Exception:
         frappe.log_error(
             title=f"Ledgerly transactional engine: submit failed for {doc.doctype} {doc.name}",
@@ -128,8 +134,10 @@ def _matching_sources(doctype: str) -> list[dict]:
         """
         SELECT
             lc.name          AS ledger_config,
+            lc.ledger_name,
             lc.balance_carrier_doctype,
             lc.balance_field,
+            lc.allow_negative_balance,
             ls.source_field,
             ls.child_table_field,
             ls.direction,
@@ -173,6 +181,30 @@ def _create_entry_for_source(doc, source: dict) -> None:
 
     if _entry_already_exists(source["ledger_config"], doc.doctype, doc.name, source["source_field"]):
         return
+
+    # Negative-balance guard. Block the feeder submit if this delta would take
+    # the carrier's running balance below zero, unless the config opted in.
+    if not source["allow_negative_balance"]:
+        current = _carrier_current_balance(
+            source["ledger_config"], source["balance_carrier_doctype"], carrier_name
+        )
+        proposed = current + delta
+        if proposed < 0:
+            frappe.throw(
+                _(
+                    "This {0} would take {1} '{2}' to a balance of {3}, but negative "
+                    "balances are not allowed for ledger '{4}'. Enable 'Allow Negative "
+                    "Balance' on the Ledger Config to permit this."
+                ).format(
+                    doc.doctype,
+                    source["balance_carrier_doctype"],
+                    carrier_name,
+                    flt(proposed),
+                    source["ledger_name"],
+                ),
+                exc=NegativeBalanceError,
+                title=_("Negative Balance Not Allowed"),
+            )
 
     posting_dt = _resolve_posting_datetime(doc, source)
 
@@ -305,6 +337,26 @@ def _write_carrier_balance(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _carrier_current_balance(ledger_config: str, carrier_doctype: str, carrier_name: str) -> float:
+    """Current running balance for a carrier = sum of submitted entry deltas.
+
+    Computed from the entries (the source of truth), not the carrier doc field,
+    so the guard is correct even if the carrier field drifted.
+    """
+    row = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(delta), 0)
+        FROM `tabLedger Entry`
+        WHERE ledger_config = %s
+          AND carrier_doctype = %s
+          AND carrier_name = %s
+          AND docstatus = 1
+        """,
+        (ledger_config, carrier_doctype, carrier_name),
+    )
+    return flt(row[0][0]) if row else 0.0
+
 
 def _entry_already_exists(
     ledger_config: str, source_doctype: str, source_name: str, source_field: str
