@@ -22,7 +22,10 @@ live alongside this one at ``engine_transactional.py`` (PR #9).
 from __future__ import annotations
 
 import frappe
+from frappe import _
 from frappe.utils import flt
+
+from ledgerly.core.exceptions import NegativeBalanceError
 
 
 _CACHE_PREFIX = "ledgerly:configs_for:"
@@ -48,6 +51,9 @@ def capture_change(doc, method=None):
     for config_name in config_names:
         try:
             _process_config(doc, config_name)
+        except NegativeBalanceError:
+            # Deliberate block — must propagate to stop the source-doc save.
+            raise
         except Exception:
             frappe.log_error(
                 title=f"Ledgerly: failed to process {config_name} for {doc.doctype} {doc.name}",
@@ -127,6 +133,22 @@ def _process_config(doc, config_name):
 
     if flt(new_value) == flt(old_value or 0):
         return
+
+    # Negative-balance guard. For this ledger type the balance equals the
+    # tracked value, so a negative new value is a negative balance. Block it
+    # unless the config opted in.
+    if not config.allow_negative_balance and flt(new_value) < 0:
+        frappe.throw(
+            _(
+                "{0} cannot be set to {1}: it would drive the balance negative, "
+                "which is not allowed for ledger '{2}'. Enable 'Allow Negative "
+                "Balance' on the Ledger Config to permit this."
+            ).format(
+                _(config.tracked_field), flt(new_value), config.ledger_name
+            ),
+            exc=NegativeBalanceError,
+            title=_("Negative Balance Not Allowed"),
+        )
 
     posting_datetime = config.resolve_posting_datetime(doc)
     delta = flt(new_value) - flt(old_value or 0)
