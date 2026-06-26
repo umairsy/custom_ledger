@@ -5,6 +5,18 @@ app_description = "Configurable custom ledgers for Frappe — define your own le
 app_email = "ledgerly@example.com"
 app_license = "TBD"
 
+# Apps screen (v16 "iPhone-style" desktop) and app switcher.
+# Routes to the Ledgerly workspace. On v15 this is ignored harmlessly; the
+# workspace itself provides the sidebar entry on both versions.
+add_to_apps_screen = [
+    {
+        "name": "ledgerly",
+        "logo": "/assets/ledgerly/images/ledgerly-logo.svg",
+        "title": "Custom Ledger",
+        "route": "/app/ledgerly",
+    }
+]
+
 # Document Events
 # ---------------
 # The wildcard "*" entry fires on every doc save in the system. The engine's
