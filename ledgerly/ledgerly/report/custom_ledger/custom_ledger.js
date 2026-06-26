@@ -33,6 +33,18 @@ frappe.query_reports["Custom Ledger"] = {
         // source_name and dim_1..5 start hidden; updated by update_dynamic_filters().
         // MultiSelectList: get_data reads filter.df.options (set dynamically to the
         // linked doctype) so autocomplete always queries the correct doctype.
+        // Carrier filter — only shown for Type 2 ("Track balance from
+        // transactions") configs, where the balance is scoped to a carrier
+        // record (e.g. a Customer) rather than the source document.
+        {
+            fieldname: "carrier_name",
+            label: __("Carrier"),
+            fieldtype: "MultiSelectList",
+            get_data: function (txt) {
+                return _get_link_options("carrier_name", txt);
+            },
+            hidden: 1,
+        },
         {
             fieldname: "source_name",
             label: __("Source Document"),
@@ -113,7 +125,7 @@ frappe.query_reports["Custom Ledger"] = {
         // but with bold text on the cells that carry information.
         if (is_summary) {
             const text = value !== null && value !== undefined ? value : "";
-            const bold_cols = ["source_name", "opening", "delta", "balance"];
+            const bold_cols = ["carrier_name", "source_name", "opening", "delta", "balance"];
             if (bold_cols.includes(column.fieldname)) {
                 return `<span style="font-weight:600;">${default_formatter(text, row, column, data)}</span>`;
             }
@@ -167,7 +179,7 @@ function update_dynamic_filters() {
     const config = frappe.query_report.get_filter_value("ledger_config");
 
     // No config — hide and clear all dynamic filters.
-    const dynamic = ["source_name", "dim_1", "dim_2", "dim_3", "dim_4", "dim_5"];
+    const dynamic = ["carrier_name", "source_name", "dim_1", "dim_2", "dim_3", "dim_4", "dim_5"];
     if (!config) {
         dynamic.forEach((fn) => {
             _set_filter(fn, { hidden: 1 });
@@ -186,13 +198,36 @@ function update_dynamic_filters() {
             // Update page title to the ledger's display name.
             frappe.query_report.page.set_title(meta.ledger_name || __("Custom Ledger"));
 
-            // Source Document filter — label reflects the source doctype; options
-            // stores the doctype name so get_data can autocomplete against it.
-            _set_filter("source_name", {
-                label: __(meta.source_doctype),
-                options: meta.source_doctype,
-                hidden: 0,
-            });
+            const is_type2 = meta.ledger_type === "Track balance from transactions";
+
+            // Carrier filter — Type 2 only. The balance is scoped to a carrier
+            // record, so this is the primary lens for a Type 2 ledger.
+            if (is_type2 && meta.balance_carrier_doctype) {
+                _set_filter("carrier_name", {
+                    label: __(meta.balance_carrier_doctype),
+                    options: meta.balance_carrier_doctype,
+                    hidden: 0,
+                });
+            } else {
+                _set_filter("carrier_name", { hidden: 1 });
+                frappe.query_report.set_filter_value("carrier_name", []);
+            }
+
+            // Source Document filter — Type 1 only. The label reflects the source
+            // doctype; options stores the doctype name so get_data can autocomplete
+            // against it. For Type 2 the source varies per entry (heterogeneous
+            // feeders, no single source_doctype on the config), so this filter is
+            // hidden and the feeder DocType is surfaced as a report column instead.
+            if (is_type2) {
+                _set_filter("source_name", { hidden: 1 });
+                frappe.query_report.set_filter_value("source_name", []);
+            } else {
+                _set_filter("source_name", {
+                    label: __(meta.source_doctype),
+                    options: meta.source_doctype,
+                    hidden: 0,
+                });
+            }
 
             // Dimension filters — show only dims defined in this config.
             for (let i = 1; i <= 5; i++) {

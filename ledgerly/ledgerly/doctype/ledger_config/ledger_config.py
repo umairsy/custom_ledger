@@ -638,7 +638,9 @@ def get_config_meta(name: str) -> dict:
     config = frappe.get_cached_doc("Ledger Config", name)
     return {
         "ledger_name": config.ledger_name,
+        "ledger_type": config.ledger_type,
         "source_doctype": config.source_doctype,
+        "balance_carrier_doctype": config.balance_carrier_doctype,
         "narration_field": config.narration_field,
         "dimensions": [
             {
