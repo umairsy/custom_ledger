@@ -21,7 +21,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, get_datetime
 
-from ledgerly.core.exceptions import NegativeBalanceError
+from ledgerly.core.exceptions import BackdatedEntryError, NegativeBalanceError
 
 
 _FEEDER_CACHE_KEY = "ledgerly:type2_feeders"
@@ -39,7 +39,7 @@ def capture_submit(doc, method=None):
 
     try:
         _process_submit(doc)
-    except NegativeBalanceError:
+    except (NegativeBalanceError, BackdatedEntryError):
         # Deliberate block — must propagate to stop the feeder submit.
         raise
     except Exception:
@@ -138,6 +138,7 @@ def _matching_sources(doctype: str) -> list[dict]:
             lc.balance_carrier_doctype,
             lc.balance_field,
             lc.allow_negative_balance,
+            lc.ledger_mutability,
             ls.source_field,
             ls.child_table_field,
             ls.direction,
@@ -207,6 +208,28 @@ def _create_entry_for_source(doc, source: dict) -> None:
             )
 
     posting_dt = _resolve_posting_datetime(doc, source)
+
+    # Back-dated guard. Type 2 balances are derived (report orders deltas; the
+    # carrier field is an order-independent SUM), so a Mutable ledger needs no
+    # repost — it just posts. An Immutable ledger rejects the back-dated entry.
+    if source["ledger_mutability"] != "Mutable" and _is_backdated_carrier(
+        source["ledger_config"], source["balance_carrier_doctype"], carrier_name, posting_dt
+    ):
+        frappe.throw(
+            _(
+                "This {0} is dated {1}, before an existing entry for {2} '{3}', "
+                "and ledger '{4}' is Immutable. Set its Ledger Mutability to "
+                "'Mutable' to allow back-dated transactions."
+            ).format(
+                doc.doctype,
+                posting_dt,
+                source["balance_carrier_doctype"],
+                carrier_name,
+                source["ledger_name"],
+            ),
+            exc=BackdatedEntryError,
+            title=_("Back-dated Entry Not Allowed"),
+        )
 
     entry = frappe.new_doc("Ledger Entry")
     entry.ledger_config = source["ledger_config"]
@@ -356,6 +379,21 @@ def _carrier_current_balance(ledger_config: str, carrier_doctype: str, carrier_n
         (ledger_config, carrier_doctype, carrier_name),
     )
     return flt(row[0][0]) if row else 0.0
+
+
+def _is_backdated_carrier(ledger_config, carrier_doctype, carrier_name, posting_dt) -> bool:
+    """True if posting_dt is before the carrier's latest submitted entry."""
+    row = frappe.db.sql(
+        """
+        SELECT MAX(posting_datetime)
+        FROM `tabLedger Entry`
+        WHERE ledger_config = %s AND carrier_doctype = %s
+          AND carrier_name = %s AND docstatus = 1
+        """,
+        (ledger_config, carrier_doctype, carrier_name),
+    )
+    max_dt = row[0][0] if row else None
+    return max_dt is not None and get_datetime(posting_dt) < get_datetime(max_dt)
 
 
 def _entry_already_exists(
