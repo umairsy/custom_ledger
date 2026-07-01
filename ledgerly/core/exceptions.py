@@ -16,3 +16,8 @@ import frappe
 class NegativeBalanceError(frappe.ValidationError):
     """Raised when an entry would drive a ledger balance below zero and the
     Ledger Config has not opted in via ``allow_negative_balance``."""
+
+
+class BackdatedEntryError(frappe.ValidationError):
+    """Raised when an entry is posted before the latest entry in its slice and
+    the Ledger Config is Immutable (does not permit back-dating / reposting)."""

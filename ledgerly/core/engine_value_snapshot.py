@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, get_datetime
 
-from ledgerly.core.exceptions import NegativeBalanceError
+from ledgerly.core.exceptions import BackdatedEntryError, NegativeBalanceError
 
 
 _CACHE_PREFIX = "ledgerly:configs_for:"
@@ -51,7 +51,7 @@ def capture_change(doc, method=None):
     for config_name in config_names:
         try:
             _process_config(doc, config_name)
-        except NegativeBalanceError:
+        except (NegativeBalanceError, BackdatedEntryError):
             # Deliberate block — must propagate to stop the source-doc save.
             raise
         except Exception:
@@ -153,6 +153,21 @@ def _process_config(doc, config_name):
     posting_datetime = config.resolve_posting_datetime(doc)
     delta = flt(new_value) - flt(old_value or 0)
 
+    # Back-dated guard. A reading posted before this source's latest entry
+    # breaks the delta chain. Immutable ledgers reject it; Mutable ledgers
+    # accept it and repost the slice after insert (below).
+    backdated = _is_backdated(config_name, doc.name, posting_datetime)
+    if backdated and config.ledger_mutability != "Mutable":
+        frappe.throw(
+            _(
+                "This entry is dated {0}, before an existing entry for '{1}', "
+                "and ledger '{2}' is Immutable. Set its Ledger Mutability to "
+                "'Mutable' to allow back-dated entries (they will be reposted)."
+            ).format(posting_datetime, doc.name, config.ledger_name),
+            exc=BackdatedEntryError,
+            title=_("Back-dated Entry Not Allowed"),
+        )
+
     entry = _build_ledger_entry(doc, config, new_value, delta, posting_datetime)
 
     if _signature_already_exists(config_name, doc.name, entry.change_signature):
@@ -172,6 +187,26 @@ def _process_config(doc, config_name):
 
     entry.insert(ignore_permissions=True)
     entry.submit()
+
+    # Mutable ledger + back-dated insert: recompute this slice's delta chain.
+    if backdated:
+        from ledgerly.core.reposting import enqueue_slice_repost
+
+        enqueue_slice_repost(config_name, doc.name)
+
+
+def _is_backdated(config_name, source_name, posting_datetime) -> bool:
+    """True if posting_datetime is before the latest submitted entry for this slice."""
+    row = frappe.db.sql(
+        """
+        SELECT MAX(posting_datetime)
+        FROM `tabLedger Entry`
+        WHERE ledger_config = %s AND source_name = %s AND docstatus = 1
+        """,
+        (config_name, source_name),
+    )
+    max_dt = row[0][0] if row else None
+    return max_dt is not None and get_datetime(posting_datetime) < get_datetime(max_dt)
 
 
 def _compute_value(doc, config):

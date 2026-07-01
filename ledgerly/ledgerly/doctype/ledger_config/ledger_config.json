@@ -13,6 +13,7 @@
   "column_break_header",
   "track_balance",
   "allow_negative_balance",
+  "ledger_mutability",
   "section_source",
   "source_doctype",
   "value_source_mode",
@@ -81,6 +82,14 @@
    "fieldtype": "Check",
    "label": "Allow Negative Balance",
    "description": "If unchecked, a change or transaction that would drive the balance below zero is blocked at entry time with a validation error. Check to permit negative balances."
+  },
+  {
+   "default": "Immutable",
+   "fieldname": "ledger_mutability",
+   "fieldtype": "Select",
+   "label": "Ledger Mutability",
+   "options": "Immutable\nMutable",
+   "description": "Immutable: an entry posted before the latest entry in its slice is blocked, so the running balance is always correct with no reposting (append-only). Mutable: back-dated entries are allowed and the affected slice is re-posted (its delta chain recomputed) in the background."
   },
 
   {

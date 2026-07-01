@@ -27,6 +27,58 @@ frappe.ui.form.on("Ledger Config", {
                     "_blank"
                 );
             });
+
+            // Maintenance — integrity check + reposting.
+            frm.add_custom_button(__("Check Integrity"), function () {
+                frappe.call({
+                    method: "ledgerly.core.reposting.check_ledger_integrity",
+                    args: { ledger_config: frm.doc.name },
+                    freeze: true,
+                    freeze_message: __("Scanning ledger…"),
+                    callback: function (r) {
+                        if (!r.message) return;
+                        const count = r.message.anomaly_count;
+                        if (!count) {
+                            frappe.msgprint({
+                                title: __("Ledger is consistent"),
+                                message: __("No running-balance anomalies found."),
+                                indicator: "green",
+                            });
+                            return;
+                        }
+                        const rows = r.message.anomalies
+                            .map((a) => "<li>" + frappe.utils.escape_html(JSON.stringify(a)) + "</li>")
+                            .join("");
+                        frappe.msgprint({
+                            title: __("{0} anomalies found", [count]),
+                            message: "<ul>" + rows + "</ul>" +
+                                (frm.doc.ledger_mutability === "Mutable"
+                                    ? __("<p>Use <b>Repost Ledger</b> to fix.</p>")
+                                    : __("<p>This ledger is Immutable; anomalies indicate historic data issues.</p>")),
+                            indicator: "red",
+                        });
+                    },
+                });
+            }, __("Maintenance"));
+
+            frm.add_custom_button(__("Repost Ledger"), function () {
+                frappe.confirm(
+                    __("Recompute this ledger's running balance? Runs in the background."),
+                    function () {
+                        frappe.call({
+                            method: "ledgerly.core.reposting.repost_ledger",
+                            args: { ledger_config: frm.doc.name },
+                            freeze: true,
+                            callback: function (r) {
+                                frappe.show_alert({
+                                    message: __("Repost queued: {0}", [JSON.stringify(r.message)]),
+                                    indicator: "blue",
+                                });
+                            },
+                        });
+                    }
+                );
+            }, __("Maintenance"));
         }
 
         // Type 2 only: re-populate balance_field options on form load so the
