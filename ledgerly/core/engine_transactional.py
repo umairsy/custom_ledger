@@ -43,6 +43,25 @@ def capture_submit(doc, method=None):
         )
 
 
+def permit_feeder_cancel(doc, method=None):
+    """Hook entry point for ``before_cancel``.
+
+    A submitted Ledger Entry holds a Dynamic Link back to its feeder doc, so
+    Frappe's cancel link-check would block the feeder from being cancelled.
+    Ledgerly reverses those entries in ``capture_cancel`` (on_cancel), so the
+    entries must not stand in the way. We add "Ledger Entry" to the feeder's
+    ``ignore_linked_doctypes`` (honoured by the Cancel link-check), mirroring
+    how ERPNext exempts GL/Stock Ledger entries when cancelling a voucher.
+    """
+    if not _is_feeder_doctype(doc.doctype):
+        return
+
+    ignored = list(doc.get("ignore_linked_doctypes") or [])
+    if "Ledger Entry" not in ignored:
+        ignored.append("Ledger Entry")
+        doc.ignore_linked_doctypes = ignored
+
+
 def capture_cancel(doc, method=None):
     """Hook entry point for ``on_cancel`` — reverse previously-created entries."""
     if not _is_feeder_doctype(doc.doctype):
@@ -249,6 +268,9 @@ def _process_cancel(doc) -> None:
         reversal.is_reversal = 1
         reversal.reverses = orig["name"]
 
+        # The reversal deliberately references the now-cancelled feeder (its
+        # audit trail), so skip Frappe's "cannot link cancelled document" check.
+        reversal.flags.ignore_links = True
         reversal.insert(ignore_permissions=True)
         reversal.submit()
 

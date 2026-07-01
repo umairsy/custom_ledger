@@ -24,6 +24,7 @@ doc_events = {
             "ledgerly.core.engine_value_snapshot.capture_change",
             "ledgerly.core.engine_transactional.capture_submit",
         ],
+        "before_cancel": "ledgerly.core.engine_transactional.permit_feeder_cancel",
         "on_cancel": "ledgerly.core.engine_transactional.capture_cancel",
         "on_load": "ledgerly.core.balance_recompute.recompute_on_load",
     },
