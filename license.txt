@@ -2,4 +2,4 @@ License: TBD
 
 A formal open-source license will be chosen before the first stable
 release (v1.0.0) and before publication to the Frappe Cloud marketplace.
-Until then, all rights are reserved by the Ledgerly Contributors.
+Until then, all rights are reserved by the Custom Ledger Contributors.

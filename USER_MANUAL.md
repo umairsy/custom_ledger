@@ -1,8 +1,8 @@
-# Ledgerly — User Manual
+# Custom Ledger — User Manual
 
-Ledgerly lets you turn changes on any DocType into a proper ledger — with running balances, an opening/closing report, and an analytics dashboard — without writing code. You describe what to track in a **Ledger Config**, and Ledgerly does the rest.
+Custom Ledger lets you turn changes on any DocType into a proper ledger — with running balances, an opening/closing report, and an analytics dashboard — without writing code. You describe what to track in a **Ledger Config**, and Custom Ledger does the rest.
 
-This manual covers what Ledgerly does and how to use each feature. It assumes you already have Ledgerly installed on your Frappe/ERPNext site.
+This manual covers what Custom Ledger does and how to use each feature. It assumes you already have Custom Ledger installed on your Frappe/ERPNext site.
 
 ---
 
@@ -22,7 +22,7 @@ This manual covers what Ledgerly does and how to use each feature. It assumes yo
 
 ## Core concepts
 
-Ledgerly is built around four objects:
+Custom Ledger is built around four objects:
 
 **Ledger Config** — the setup record. It says which DocType to watch, which numeric field to track, when each entry is dated, and what dimensions to slice by. One config defines one ledger.
 
@@ -38,7 +38,7 @@ You never create Ledger Entries by hand. You create a Ledger Config once, and en
 
 ## Ledger types
 
-When you create a Ledger Config you pick a **Ledger Type**. This is the single most important choice — it determines how Ledgerly captures changes.
+When you create a Ledger Config you pick a **Ledger Type**. This is the single most important choice — it determines how Custom Ledger captures changes.
 
 | Ledger Type | What it watches | Example |
 | --- | --- | --- |
@@ -94,7 +94,7 @@ Save.
 
 ### Step 3 — Watch entries appear
 
-From now on, every time someone changes the **Weight** on a Gym Member and saves, Ledgerly creates a submitted Ledger Entry with the new value, the delta versus the previous reading, and the running balance for that member. No further action needed.
+From now on, every time someone changes the **Weight** on a Gym Member and saves, Custom Ledger creates a submitted Ledger Entry with the new value, the delta versus the previous reading, and the running balance for that member. No further action needed.
 
 ---
 
@@ -106,7 +106,7 @@ This is what *Track balance from transactions* is for: many feeder DocTypes, one
 
 ### Step 1 — Prepare the carrier DocType
 
-The **carrier** is the DocType that holds the running balance — here, **Customer**. It needs a numeric field to display the balance in (here, **Credit Balance** — a read-only Currency/Float/Int field). Add it via Customize Form if it doesn't exist. It must be **read-only**: the balance is maintained by Ledgerly, not edited by hand.
+The **carrier** is the DocType that holds the running balance — here, **Customer**. It needs a numeric field to display the balance in (here, **Credit Balance** — a read-only Currency/Float/Int field). Add it via Customize Form if it doesn't exist. It must be **read-only**: the balance is maintained by Custom Ledger, not edited by hand.
 
 ### Step 2 — Identify the feeder DocTypes
 
@@ -217,7 +217,7 @@ Everything reacts to the filters, so you can answer questions like "how did weig
 
 ## Ledger entries
 
-A **Ledger Entry** is the atomic record Ledgerly creates. You rarely open one directly, but it's useful to understand its anatomy:
+A **Ledger Entry** is the atomic record Custom Ledger creates. You rarely open one directly, but it's useful to understand its anatomy:
 
 - **Source** — the Ledger Config, the Source Document, and the Source DocType.
 - **Posting** — Posting Date, Posting Time, and a combined **Posting Datetime** (the canonical ordering key, computed from date + time, shown with the site timezone).
@@ -283,4 +283,4 @@ This works for both ledger types: on a carrier record (e.g. a Customer), View Le
 
 ---
 
-*Ledgerly is config-driven: you describe the ledger once, and the report, dashboard, entries, and per-record buttons all follow automatically.*
+*Custom Ledger is config-driven: you describe the ledger once, and the report, dashboard, entries, and per-record buttons all follow automatically.*

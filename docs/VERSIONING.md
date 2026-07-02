@@ -1,6 +1,6 @@
 # Versioning & Branch Model
 
-Ledgerly supports two Frappe major versions in parallel. Each lives on its own
+Custom Ledger supports two Frappe major versions in parallel. Each lives on its own
 long-lived branch.
 
 | Branch | Frappe | Python | Role |
@@ -8,7 +8,7 @@ long-lived branch.
 | `main` | v15 | 3.10–3.14 | Default branch, primary development line |
 | `version-16` | v16 | 3.14 | v16-compatible release line |
 
-The application code is identical on both branches — Ledgerly uses only stable
+The application code is identical on both branches — Custom Ledger uses only stable
 core Frappe APIs (`frappe.get_doc`, `frappe.db.*`, `frappe.get_meta`,
 `frappe.cache`, …) that behave the same in v15 and v16. The **only** differences
 between the branches are version-metadata:
@@ -68,4 +68,4 @@ There is currently no local v15/v16 bench for manual testing. CI is the most
 reliable way to verify both branches actually install and pass their unit tests
 against the matching Frappe version. Adding a GitHub Actions workflow per branch
 (installing `frappe` `version-15` on `main` and `version-16` on `version-16`,
-then running `bench run-tests --app ledgerly`) is the recommended next step.
+then running `bench run-tests --app custom_ledger`) is the recommended next step.
