@@ -1,0 +1,278 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:LDG-CFG-{#####}",
+ "creation": "2026-05-11 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "ledger_name",
+  "ledger_type",
+  "is_active",
+  "column_break_header",
+  "track_balance",
+  "allow_negative_balance",
+  "ledger_mutability",
+  "section_source",
+  "source_doctype",
+  "value_source_mode",
+  "child_table_field",
+  "column_break_source",
+  "tracked_field",
+  "narration_field",
+  "section_posting",
+  "posting_date_source",
+  "posting_date_field",
+  "column_break_posting",
+  "posting_time_field",
+  "section_type_2",
+  "balance_carrier_doctype",
+  "balance_field",
+  "column_break_type2",
+  "sources",
+  "section_dimensions",
+  "dimensions",
+  "section_description",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "ledger_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Ledger Name",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Human-readable name, e.g. 'Goat Weight Ledger'."
+  },
+  {
+   "default": "Track changes to a field",
+   "fieldname": "ledger_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Ledger Type",
+   "options": "Track changes to a field\nTrack balance from transactions",
+   "reqd": 1,
+   "description": "Determines how this ledger captures changes. 'Track changes to a field' watches a single numeric field on the source DocType. 'Track balance from transactions' maintains a running balance on a carrier DocType driven by submitted transaction records."
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Active",
+   "description": "When unchecked, this configuration will not create ledger entries."
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "track_balance",
+   "fieldtype": "Check",
+   "label": "Track Running Balance",
+   "description": "If unchecked, entries are created but no running balance is maintained."
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_negative_balance",
+   "fieldtype": "Check",
+   "label": "Allow Negative Balance",
+   "description": "If unchecked, a change or transaction that would drive the balance below zero is blocked at entry time with a validation error. Check to permit negative balances."
+  },
+  {
+   "default": "Immutable",
+   "fieldname": "ledger_mutability",
+   "fieldtype": "Select",
+   "label": "Ledger Mutability",
+   "options": "Immutable\nMutable",
+   "description": "Immutable: an entry posted before the latest entry in its slice is blocked, so the running balance is always correct with no reposting (append-only). Mutable: back-dated entries are allowed and the affected slice is re-posted (its delta chain recomputed) in the background."
+  },
+
+  {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "fieldname": "section_source",
+   "fieldtype": "Section Break",
+   "label": "Source"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Source DocType",
+   "options": "DocType",
+   "description": "The DocType whose field changes drive ledger entries."
+  },
+  {
+   "default": "Field on document",
+   "fieldname": "value_source_mode",
+   "fieldtype": "Select",
+   "label": "Track Value From",
+   "options": "Field on document\nSum across child rows",
+   "reqd": 1,
+   "description": "Most ledgers track a single field on the document. Pick 'Sum across child rows' only if the value is computed across a child table (e.g. total weight across line items)."
+  },
+  {
+   "depends_on": "eval:doc.value_source_mode == 'Sum across child rows'",
+   "mandatory_depends_on": "eval:doc.value_source_mode == 'Sum across child rows'",
+   "fieldname": "child_table_field",
+   "fieldtype": "Select",
+   "label": "Child Table Field",
+   "description": "Pick the child table whose rows will be summed."
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "fieldname": "tracked_field",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Tracked Field",
+   "description": "The numeric field whose changes are logged. Must be Currency, Int, or Float."
+  },
+  {
+   "depends_on": "eval:doc.source_doctype",
+   "fieldname": "narration_field",
+   "fieldtype": "Select",
+   "label": "Narration Field (optional)",
+   "description": "When set, a Narration column appears in the Custom Ledger report showing this text field from each source document. Must be a Data, Small Text, Text, or Long Text field on the Source DocType."
+  },
+
+  {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "fieldname": "section_posting",
+   "fieldtype": "Section Break",
+   "label": "Posting Date & Time",
+   "description": "How should Custom Ledger determine when each ledger entry was effective?"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type != 'Track balance from transactions'",
+   "fieldname": "posting_date_source",
+   "fieldtype": "Select",
+   "label": "Posting Date Source",
+   "options": "\nDocument modification time\nField on source DocType",
+   "description": "Pick where the posting datetime comes from. Use 'Document modification time' for masters that don't need retroactive dating. Use 'Field on source DocType' when the user-controlled measurement / transaction date matters (e.g. goat_weight_date, posting_date on a transaction)."
+  },
+  {
+   "depends_on": "eval:doc.posting_date_source == 'Field on source DocType'",
+   "mandatory_depends_on": "eval:doc.posting_date_source == 'Field on source DocType'",
+   "fieldname": "posting_date_field",
+   "fieldtype": "Select",
+   "label": "Posting Date Field",
+   "description": "A Date or Datetime field on the source DocType."
+  },
+  {
+   "fieldname": "column_break_posting",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.posting_date_source == 'Field on source DocType' && doc.posting_date_field",
+   "fieldname": "posting_time_field",
+   "fieldtype": "Select",
+   "label": "Posting Time Field",
+   "description": "Optional: a Time field on the source DocType. Only useful when 'Posting Date Field' is a Date (not Datetime). If blank, time defaults to 00:00:00."
+  },
+
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "fieldname": "section_type_2",
+   "fieldtype": "Section Break",
+   "label": "Carrier & Sources"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "fieldname": "balance_carrier_doctype",
+   "fieldtype": "Link",
+   "label": "Balance Carrier DocType",
+   "options": "DocType",
+   "description": "The DocType that holds the running balance field (e.g. Customer, Project)."
+  },
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "mandatory_depends_on": "eval:doc.balance_carrier_doctype",
+   "fieldname": "balance_field",
+   "fieldtype": "Select",
+   "label": "Balance Field",
+   "description": "The numeric field on the carrier DocType that holds the running balance."
+  },
+  {
+   "fieldname": "column_break_type2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.ledger_type == 'Track balance from transactions'",
+   "fieldname": "sources",
+   "fieldtype": "Table",
+   "label": "Transaction Sources",
+   "options": "Ledger Source",
+   "description": "Each row defines a DocType whose submissions add to or deduct from the carrier's balance."
+  },
+
+  {
+   "fieldname": "section_dimensions",
+   "fieldtype": "Section Break",
+   "label": "Dimensions"
+  },
+  {
+   "fieldname": "dimensions",
+   "fieldtype": "Table",
+   "label": "Dimensions",
+   "options": "Ledger Dimension",
+   "description": "Link fields on the source DocType to use as reporting dimensions."
+  },
+
+  {
+   "collapsible": 1,
+   "fieldname": "section_description",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-11 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Custom Ledger",
+ "name": "Ledger Config",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Sales User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "title_field": "ledger_name"
+}

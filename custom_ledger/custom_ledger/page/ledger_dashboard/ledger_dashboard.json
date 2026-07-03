@@ -1,0 +1,16 @@
+{
+ "doctype": "Page",
+ "module": "Custom Ledger",
+ "name": "ledger-dashboard",
+ "page_name": "ledger-dashboard",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Sales User"
+  }
+ ],
+ "standard": "Yes",
+ "title": "Ledger Dashboard"
+}

@@ -1,4 +1,4 @@
-# Ledgerly
+# Custom Ledger
 
 [![Frappe v16](https://img.shields.io/badge/Frappe-v16-blue.svg)](https://frappeframework.com/)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
@@ -6,17 +6,17 @@
 
 ### Configurable ledgers for any DocType — no code required
 
-*Turn changes on any Frappe/ERPNext DocType into a proper ledger, with running balances, an opening/closing report, and an analytics dashboard. You describe what to track in a Ledger Config; Ledgerly generates everything else.*
+*Turn changes on any Frappe/ERPNext DocType into a proper ledger, with running balances, an opening/closing report, and an analytics dashboard. You describe what to track in a Ledger Config; Custom Ledger generates everything else.*
 
 [Quick Start](#quick-start) • [User Manual](USER_MANUAL.md) • [Ledger Types](#ledger-types) • [How it works](#how-it-works)
 
 ---
 
-## Why Ledgerly
+## Why Custom Ledger
 
 ERPNext's Stock Ledger and General Ledger are powerful, but they're hardcoded. If you want the same kind of dated, auditable, running-balance history for anything else — a member's weight, a customer's prepaid credit, a project's budget burn — you normally have to build a Frappe app from scratch.
 
-Ledgerly closes that gap. Define a **Ledger Config**, and it automatically maintains the entries, the report, the dashboard, and a per-record drill-in button. Add a new kind of ledger by creating a config, never by writing code.
+Custom Ledger closes that gap. Define a **Ledger Config**, and it automatically maintains the entries, the report, the dashboard, and a per-record drill-in button. Add a new kind of ledger by creating a config, never by writing code.
 
 ## Features
 
@@ -38,7 +38,7 @@ Ledgerly closes that gap. Define a **Ledger Config**, and it automatically maint
 ## How it works
 
 1. **Create a Ledger Config.** Pick a ledger type, the DocType(s) to watch, the numeric field, the posting date, and any dimensions.
-2. **Ledgerly captures changes.** For *Track changes to a field*, updating the tracked field creates an entry. For *Track balance from transactions*, submitting a feeder creates an entry and updates the carrier's balance.
+2. **Custom Ledger captures changes.** For *Track changes to a field*, updating the tracked field creates an entry. For *Track balance from transactions*, submitting a feeder creates an entry and updates the carrier's balance.
 3. **Read the ledger.** Open the Custom Ledger report or the dashboard, or click **View Ledger** on any record.
 
 For step-by-step setup of both ledger types, see the [User Manual](USER_MANUAL.md).
@@ -54,8 +54,8 @@ For step-by-step setup of both ledger types, see the [User Manual](USER_MANUAL.m
 
 ```bash
 cd ~/frappe-bench
-bench get-app ledgerly https://github.com/umairsy/ledgerly
-bench --site <your-site> install-app ledgerly
+bench get-app custom_ledger https://github.com/umairsy/custom_ledger
+bench --site <your-site> install-app custom_ledger
 bench --site <your-site> migrate
 ```
 
@@ -93,7 +93,7 @@ Maintain a running balance from transactions:
 | Frappe version | Status | Branch |
 | --- | --- | --- |
 | v16 | Targeted (primary) | `version-16` (this branch) |
-| v15 | Maintained | [`main`](https://github.com/umairsy/ledgerly/tree/main) |
+| v15 | Maintained | [`main`](https://github.com/umairsy/custom_ledger/tree/main) |
 
 See [docs/VERSIONING.md](docs/VERSIONING.md) for the branch model and how changes are kept in sync across versions.
 
@@ -103,7 +103,7 @@ Run the test suite:
 
 ```bash
 bench --site <your-site> set-config allow_tests true
-bench --site <your-site> run-tests --app ledgerly
+bench --site <your-site> run-tests --app custom_ledger
 ```
 
 Every pull request runs unit tests and a Semgrep scan against Frappe's security rules.
@@ -114,4 +114,4 @@ To be finalized before the first stable release.
 
 ## Contributors
 
-Ledgerly Contributors
+Custom Ledger Contributors
