@@ -121,6 +121,12 @@ LedgerDashboard.prototype._render_filter_bar = function () {
     var me = this;
     var meta = this.meta;
 
+    // Primary record filter: Carrier for Type 2, Source Document for Type 1.
+    // The key must match the backend filter (carrier_name / source_name).
+    var is_type2 = meta.ledger_type === "Track balance from transactions";
+    me._primary_key = is_type2 ? "carrier_name" : "source_name";
+    me._primary_doctype = (is_type2 ? meta.balance_carrier_doctype : meta.source_doctype) || "";
+
     var today_str = frappe.datetime.get_today();
     var from_str = frappe.datetime.month_start();
 
@@ -177,9 +183,9 @@ LedgerDashboard.prototype._render_filter_bar = function () {
                 "<label>" + __("Group By") + "</label>" +
                 '<select id="ldg-group-by">' + grp_opts + "</select>" +
             "</div>" +
-            '<div class="ldg-filter-item" id="ldg-source-wrap">' +
-                "<label>" + frappe.utils.escape_html(meta.source_doctype) + "</label>" +
-                '<div id="ldg-source-ctrl" class="ldg-link-wrap"></div>' +
+            '<div class="ldg-filter-item" id="ldg-primary-wrap">' +
+                "<label>" + frappe.utils.escape_html(me._primary_doctype) + "</label>" +
+                '<div id="ldg-primary-ctrl" class="ldg-link-wrap"></div>' +
             "</div>" +
             dim_slots +
         "</div>";
@@ -190,7 +196,9 @@ LedgerDashboard.prototype._render_filter_bar = function () {
     $("#ldg-group-by").val(default_group);
 
     // Attach frappe Link controls
-    me.link_ctrls.source = me._make_link_ctrl("ldg-source-ctrl", meta.source_doctype);
+    if (me._primary_doctype) {
+        me.link_ctrls[me._primary_key] = me._make_link_ctrl("ldg-primary-ctrl", me._primary_doctype);
+    }
     meta.dimensions.forEach(function (d, i) {
         me.link_ctrls["dim_" + (i + 1)] = me._make_link_ctrl(
             "ldg-dim-" + (i + 1) + "-ctrl",
@@ -290,7 +298,7 @@ LedgerDashboard.prototype._get_filters = function () {
         }
     }
 
-    read_ctrl("source", "ldg-source-ctrl");
+    read_ctrl(me._primary_key, "ldg-primary-ctrl");
     me.meta.dimensions.forEach(function (d, i) {
         read_ctrl("dim_" + (i + 1), "ldg-dim-" + (i + 1) + "-ctrl");
     });

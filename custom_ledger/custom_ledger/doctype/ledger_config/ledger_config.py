@@ -576,6 +576,11 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
             _tracked_raw.append(option)
     tracked_fields = _disambiguate(_tracked_raw)
     balance_display_fields = _disambiguate(_balance_raw)
+    # Type 2 feeder Amount Field: any numeric field, incl. read-only computed
+    # totals like a Sales Invoice's grand_total / net_total (which are exactly
+    # the amounts a feeder posts). tracked_fields is editable-only, so it hides
+    # those — hence a dedicated combined list here.
+    amount_fields = _disambiguate(_tracked_raw + _balance_raw)
 
     child_table_fields = _disambiguate([
         {"value": df.fieldname, "label": f"{df.label or df.fieldname} \u2192 {df.options}"}
@@ -616,6 +621,7 @@ def get_field_options(source_doctype: str, child_table_field: str | None = None)
 
     return {
         "tracked_fields": tracked_fields,
+        "amount_fields": amount_fields,
         "balance_display_fields": balance_display_fields,
         "child_table_fields": child_table_fields,
         "dimension_fields": dimension_fields,
