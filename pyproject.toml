@@ -4,7 +4,7 @@ authors = [
     { name = "Custom Ledger Contributors", email = "custom_ledger@example.com"}
 ]
 description = "Configurable custom ledgers for Frappe — define your own ledgers driven by field changes on any DocType."
-requires-python = ">=3.14,<3.15"
+requires-python = ">=3.10,<3.15"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
