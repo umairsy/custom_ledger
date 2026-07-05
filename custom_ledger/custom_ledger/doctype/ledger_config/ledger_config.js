@@ -16,17 +16,17 @@ frappe.ui.form.on("Ledger Config", {
 
         // Buttons — only on saved docs.
         if (!frm.is_new()) {
-            frm.add_custom_button(__("View Report"), function () {
+            frm.add_custom_button(__("Report"), function () {
                 frappe.set_route("query-report", "Custom Ledger", {
                     ledger_config: frm.doc.name,
                 });
-            });
-            frm.add_custom_button(__("View Dashboard"), function () {
+            }, __("View"));
+            frm.add_custom_button(__("Dashboard"), function () {
                 window.open(
                     "/app/ledger-dashboard?config=" + encodeURIComponent(frm.doc.name),
                     "_blank"
                 );
-            });
+            }, __("View"));
 
             // Maintenance — integrity check + reposting.
             frm.add_custom_button(__("Check Integrity"), function () {
@@ -315,7 +315,7 @@ custom_ledger.populate_source_row_selects = function (frm, cdt, cdn) {
             if (!link_fields.length) link_fields = r.message.dimension_fields || [];
 
             var field_map = {
-                source_field:       r.message.tracked_fields || [],
+                source_field:       r.message.amount_fields || r.message.tracked_fields || [],
                 child_table_field:  r.message.child_table_fields || [],
                 posting_date_field: r.message.posting_date_fields || [],
                 posting_time_field: r.message.posting_time_fields || [],

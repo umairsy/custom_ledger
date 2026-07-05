@@ -29,6 +29,7 @@ _FIELDS = [
     "posting_datetime",
     "source_doctype",
     "source_name",
+    "carrier_name",
     "delta",
     "balance",
     "narration",
@@ -48,7 +49,9 @@ def get_dashboard_meta(config_name: str) -> dict:
     config = frappe.get_cached_doc("Ledger Config", config_name)
     return {
         "ledger_name": config.ledger_name,
+        "ledger_type": config.ledger_type,
         "source_doctype": config.source_doctype,
+        "balance_carrier_doctype": config.balance_carrier_doctype,
         "narration_field": config.narration_field,
         "precision": _get_precision(config),
         "dimensions": [
@@ -90,6 +93,7 @@ def get_dashboard_data(config_name: str, filters: str | dict) -> dict:
         "posting_date": ["between", [from_date, to_date]],
     }
     _apply_multifilter(base, "source_name", filters.get("source_name"))
+    _apply_multifilter(base, "carrier_name", filters.get("carrier_name"))
     for i in range(1, 6):
         _apply_multifilter(base, f"dim_{i}", filters.get(f"dim_{i}"))
 
@@ -102,9 +106,13 @@ def get_dashboard_data(config_name: str, filters: str | dict) -> dict:
 
     precision = _get_precision(config)
 
+    # Opening balance per group (sum of deltas strictly before the window,
+    # honouring the active filter). Works for both ledger types: Type 1's
+    # stored balance equals the cumulative delta, and Type 2 has no stored
+    # per-entry balance so it MUST be derived from deltas.
     return {
-        "kpi": _compute_kpi(entries, config_name, from_date, precision),
-        "trend": _compute_trend(entries, time_grain, group_by, from_date, to_date),
+        "kpi": _compute_kpi(entries, config, base, from_date, precision),
+        "trend": _compute_trend(entries, time_grain, group_by, from_date, to_date, config, base),
         "breakdown": _compute_breakdown(entries, group_by),
         "top_movers": _compute_top_movers(entries, config),
         "distribution": _compute_distribution(entries, precision),
@@ -208,34 +216,61 @@ def _generate_buckets(from_date, to_date, grain: str) -> list[str]:
 # KPI Strip
 # ---------------------------------------------------------------------------
 
-def _compute_kpi(entries: list[dict], config_name: str, from_date, precision: int) -> dict:
-    # Opening: last balance per source strictly before from_date
-    opening_rows = frappe.get_all(
-        "Ledger Entry",
-        filters={"ledger_config": config_name, "docstatus": 1, "posting_date": ["<", from_date]},
-        fields=["source_name", "balance", "posting_datetime"],
-        order_by="posting_datetime desc",
+def _pre_window(base: dict, from_date) -> dict:
+    """Filter dict for entries strictly before the window (same non-date filters)."""
+    pre = {k: v for k, v in base.items() if k != "posting_date"}
+    pre["posting_date"] = ["<", from_date]
+    return pre
+
+
+def _delta_sum_before_by_group(base: dict, from_date, group_by: str) -> dict[str, float]:
+    """Type 2 opening per group = sum of deltas before the window (order-independent)."""
+    rows = frappe.get_all("Ledger Entry", filters=_pre_window(base, from_date), fields=_FIELDS)
+    opening: dict[str, float] = {}
+    for row in rows:
+        g = _get_group_value(row, group_by)
+        opening[g] = opening.get(g, 0.0) + flt(row["delta"])
+    return opening
+
+
+def _last_balance_per_source_before(base: dict, from_date) -> dict[str, float]:
+    """Type 1 opening per source = last stored balance strictly before the window."""
+    rows = frappe.get_all(
+        "Ledger Entry", filters=_pre_window(base, from_date),
+        fields=["source_name", "balance"], order_by="posting_datetime desc",
     )
-    opening_per_source: dict[str, float] = {}
-    for row in opening_rows:
+    opening: dict[str, float] = {}
+    for row in rows:
         sn = row["source_name"]
-        if sn not in opening_per_source:
-            opening_per_source[sn] = flt(row["balance"])
+        if sn not in opening:
+            opening[sn] = flt(row["balance"])
+    return opening
 
-    # Closing: last balance per source in the period (entries are asc-sorted, last wins)
-    closing_per_source: dict[str, float] = {}
-    for e in entries:
-        closing_per_source[e["source_name"]] = flt(e["balance"])
 
-    total_closing = sum(closing_per_source.values()) if closing_per_source else 0.0
-    total_opening = sum(opening_per_source.get(sn, 0.0) for sn in closing_per_source) if closing_per_source else sum(opening_per_source.values())
-
+def _compute_kpi(entries: list[dict], config, base: dict, from_date, precision: int) -> dict:
+    is_type2 = config.ledger_type == "Track balance from transactions"
     total_in = sum(flt(e["delta"]) for e in entries if flt(e["delta"]) > 0)
     total_out = sum(flt(e["delta"]) for e in entries if flt(e["delta"]) < 0)
+    net = sum(flt(e["delta"]) for e in entries)
+
+    if is_type2:
+        # No stored per-entry balance: closing = opening (delta sum before) + net.
+        opening_total = sum(_delta_sum_before_by_group(base, from_date, "none").values())
+        closing = opening_total + net
+        net_change = net
+    else:
+        # Type 1: the stored balance is the authoritative snapshot per source.
+        opening_per_source = _last_balance_per_source_before(base, from_date)
+        closing_per_source: dict[str, float] = {}
+        for e in entries:  # asc-sorted, last wins
+            closing_per_source[e["source_name"]] = flt(e["balance"])
+        closing = sum(closing_per_source.values())
+        opening_total = sum(opening_per_source.get(sn, 0.0) for sn in closing_per_source)
+        net_change = closing - opening_total
 
     return {
-        "closing": round(total_closing, precision),
-        "net_change": round(total_closing - total_opening, precision),
+        "closing": round(closing, precision),
+        "net_change": round(net_change, precision),
         "total_in": round(total_in, precision),
         "total_out": round(abs(total_out), precision),
         "records": len(entries),
@@ -246,24 +281,14 @@ def _compute_kpi(entries: list[dict], config_name: str, from_date, precision: in
 # Trend Chart
 # ---------------------------------------------------------------------------
 
-def _compute_trend(entries: list[dict], grain: str, group_by: str, from_date, to_date) -> dict:
+def _compute_trend(entries: list[dict], grain: str, group_by: str, from_date, to_date,
+                   config, base: dict) -> dict:
     buckets = _generate_buckets(from_date, to_date, grain)
+    is_type2 = config.ledger_type == "Track balance from transactions"
 
-    # Collect groups in first-appearance order
+    # (bucket, group, delta, balance) for each dated entry.
+    prepped = []
     seen: list[str] = []
-    for e in entries:
-        g = _get_group_value(e, group_by)
-        if g not in seen:
-            seen.append(g)
-
-    has_others = len(seen) > MAX_SERIES
-    top_groups = seen[:MAX_SERIES]
-    others_groups = set(seen[MAX_SERIES:]) if has_others else set()
-
-    # Per-group: bucket → last balance in that bucket
-    group_bk: dict[str, dict[str, float]] = {g: {} for g in top_groups}
-    others_bk: dict[str, float] = {}
-
     for e in entries:
         dt_val = e.get("posting_datetime")
         if not dt_val:
@@ -271,40 +296,54 @@ def _compute_trend(entries: list[dict], grain: str, group_by: str, from_date, to
         dt = get_datetime(str(dt_val))
         if not isinstance(dt, datetime):
             continue
-        bk = _bucket_dt(dt, grain)
         g = _get_group_value(e, group_by)
-        bal = flt(e.get("balance", 0))
+        if g not in seen:
+            seen.append(g)
+        prepped.append((_bucket_dt(dt, grain), g, flt(e["delta"]), flt(e.get("balance", 0))))
 
-        if g in group_bk:
-            group_bk[g][bk] = bal
-        elif g in others_groups:
-            # Aggregate others: sum closing balances per bucket (approximation)
-            others_bk[bk] = others_bk.get(bk, 0.0) + bal
-
+    has_others = len(seen) > MAX_SERIES
+    top_groups = seen[:MAX_SERIES]
+    others_groups = set(seen[MAX_SERIES:]) if has_others else set()
     colors = [
         "#5DCAA5", "#185FA5", "#F0997B", "#E6C17E",
         "#A78FD0", "#6BB5E5", "#F5A623", "#888888", "#AAAAAA",
     ]
 
-    datasets = []
-    for g in top_groups:
-        bk_map = group_bk[g]
-        series: list[float] = []
-        last = 0.0
+    def _series_for(bucket_val):
+        series, last = [], None
         for bk in buckets:
-            if bk in bk_map:
-                last = bk_map[bk]
-            series.append(last)
-        datasets.append({"name": str(g)[:40], "values": series})
+            if bk in bucket_val:
+                last = bucket_val[bk]
+            series.append(round(last if last is not None else 0.0, 2))
+        return series
 
-    if has_others:
-        series = []
-        last = 0.0
-        for bk in buckets:
-            if bk in others_bk:
-                last = others_bk[bk]
-            series.append(last)
-        datasets.append({"name": f"Others ({len(others_groups)} more)", "values": series})
+    datasets = []
+    if is_type2:
+        # Running balance = opening (delta sum before window) + cumulative deltas.
+        opening = _delta_sum_before_by_group(base, from_date, group_by)
+        for g in top_groups + (["__others__"] if has_others else []):
+            members = others_groups if g == "__others__" else {g}
+            running = sum(flt(opening.get(m, 0.0)) for m in members)
+            per_bucket = {bk: 0.0 for bk in buckets}
+            for bk, gv, d, _bal in prepped:
+                if gv in members and bk in per_bucket:
+                    per_bucket[bk] += d
+            series = []
+            for bk in buckets:
+                running += per_bucket[bk]
+                series.append(round(running, 2))
+            name = f"Others ({len(others_groups)} more)" if g == "__others__" else str(g)[:40]
+            datasets.append({"name": name, "values": series})
+    else:
+        # Type 1: last stored balance in each bucket, carried forward.
+        for g in top_groups + (["__others__"] if has_others else []):
+            members = others_groups if g == "__others__" else {g}
+            bucket_val: dict[str, float] = {}
+            for bk, gv, _d, bal in prepped:
+                if gv in members:
+                    bucket_val[bk] = bucket_val.get(bk, 0.0) + bal if g == "__others__" else bal
+            name = f"Others ({len(others_groups)} more)" if g == "__others__" else str(g)[:40]
+            datasets.append({"name": name, "values": _series_for(bucket_val)})
 
     return {
         "labels": buckets,

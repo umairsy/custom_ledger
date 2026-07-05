@@ -67,7 +67,10 @@
   },
   {
    "fieldname": "column_break_header",
-   "fieldtype": "Column Break"
+   "fieldtype": "Section Break",
+   "label": "Advanced Options",
+   "collapsible": 1,
+   "description": "Optional behaviour toggles — defaults are fine for most ledgers."
   },
   {
    "default": "1",
