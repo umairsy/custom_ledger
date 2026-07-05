@@ -47,14 +47,17 @@ frappe.ui.form.on("Ledger Config", {
                             return;
                         }
                         const rows = r.message.anomalies
-                            .map((a) => "<li>" + frappe.utils.escape_html(JSON.stringify(a)) + "</li>")
+                            .map((a) => "<li style='margin-bottom:6px;'>" + _cl_anomaly_line(a) + "</li>")
                             .join("");
+                        const title = count === 1
+                            ? __("1 anomaly found")
+                            : __("{0} anomalies found", [count]);
+                        const hint = frm.doc.ledger_mutability === "Mutable"
+                            ? __("<p style='margin-top:10px;'>Click <b>Maintenance &rarr; Repost Ledger</b> to correct these automatically.</p>")
+                            : __("<p style='margin-top:10px;'>This ledger is <b>Immutable</b>, so these reflect historic data that won't be auto-corrected.</p>");
                         frappe.msgprint({
-                            title: __("{0} anomalies found", [count]),
-                            message: "<ul>" + rows + "</ul>" +
-                                (frm.doc.ledger_mutability === "Mutable"
-                                    ? __("<p>Use <b>Repost Ledger</b> to fix.</p>")
-                                    : __("<p>This ledger is Immutable; anomalies indicate historic data issues.</p>")),
+                            title: title,
+                            message: "<ul style='padding-left:18px;margin:0;'>" + rows + "</ul>" + hint,
                             indicator: "red",
                         });
                     },
@@ -63,17 +66,27 @@ frappe.ui.form.on("Ledger Config", {
 
             frm.add_custom_button(__("Repost Ledger"), function () {
                 frappe.confirm(
-                    __("Recompute this ledger's running balance? Runs in the background."),
+                    __("Re-check every entry and correct this ledger's balances?"),
                     function () {
                         frappe.call({
                             method: "custom_ledger.core.reposting.repost_ledger",
                             args: { ledger_config: frm.doc.name },
                             freeze: true,
+                            freeze_message: __("Reposting…"),
                             callback: function (r) {
-                                frappe.show_alert({
-                                    message: __("Repost queued: {0}", [JSON.stringify(r.message)]),
-                                    indicator: "blue",
-                                });
+                                const m = r.message || {};
+                                let msg;
+                                if (m.corrected_entries !== undefined) {
+                                    msg = m.corrected_entries
+                                        ? __("Reposted — corrected {0} {1} and refreshed the balance.",
+                                            [m.corrected_entries, m.corrected_entries === 1 ? __("entry") : __("entries")])
+                                        : __("Checked — everything was already correct.");
+                                } else if (m.queued_slices !== undefined) {
+                                    msg = __("Reposting started in the background. Run Check Integrity again in a moment to confirm.");
+                                } else {
+                                    msg = __("Reposting started.");
+                                }
+                                frappe.show_alert({ message: msg, indicator: "green" }, 7);
                             },
                         });
                     }
@@ -408,3 +421,21 @@ custom_ledger.fetch_field_options = function (frm) {
         },
     });
 };
+
+// Human-readable, highlighted line for one integrity anomaly. Handles both
+// ledger types: delta drift ({slice|source, stored_delta, expected_delta}) and
+// a Type 2 carrier-field mismatch ({carrier, carrier_field, expected}).
+function _cl_anomaly_line(a) {
+    var esc = frappe.utils.escape_html;
+    var fmt = function (v) { return typeof format_number === "function" ? format_number(v) : v; };
+    var red = function (v) { return "<span style='color:#b8291f;font-weight:600;'>" + fmt(v) + "</span>"; };
+    var green = function (v) { return "<span style='color:#0f6e56;font-weight:600;'>" + fmt(v) + "</span>"; };
+
+    if (a.carrier !== undefined) {
+        return __("{0} — balance shows {1}, but the entries total {2}.",
+            ["<b>" + esc(a.carrier) + "</b>", red(a.carrier_field), green(a.expected)]);
+    }
+    var who = a.source || a.slice || __("An entry");
+    return __("{0} — recorded change {1}, but it should be {2}.",
+        ["<b>" + esc(who) + "</b>", red(a.stored_delta), green(a.expected_delta)]);
+}
