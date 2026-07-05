@@ -54,23 +54,33 @@ class LedgerConfig(Document):
             self._validate_dimensions()
             self._enrich_dimensions()
 
+    def _referenced_doctypes(self) -> set[str]:
+        """DocTypes this config attaches a View-Ledger button to: the Type 1
+        source, or (Type 2) the carrier plus each feeder source doctype."""
+        dts: set[str] = set()
+        if self.ledger_type == "Track balance from transactions":
+            if self.balance_carrier_doctype:
+                dts.add(self.balance_carrier_doctype)
+            for row in (self.sources or []):
+                if row.source_doctype:
+                    dts.add(row.source_doctype)
+        elif self.source_doctype:
+            dts.add(self.source_doctype)
+        return dts
+
     def on_update(self):
+        # Sync the union of old + new referenced doctypes, so scripts are added
+        # for new targets and removed from ones this config no longer touches.
         old = self.get_doc_before_save()
-        old_source = old.source_doctype if old else None
-        new_source = self.source_doctype
-
-        # If source doctype changed, the old doctype's script may no longer be
-        # needed — this config is no longer targeting it.
-        if old_source and old_source != new_source:
-            _sync_client_script(old_source)
-
-        _sync_client_script(new_source)
+        old_dts = old._referenced_doctypes() if old else set()
+        for dt in old_dts | self._referenced_doctypes():
+            _sync_client_script(dt)
 
     def on_trash(self):
-        # The record still exists in the DB when on_trash fires, so pass
-        # exclude_self=True so the "any active configs remaining?" check
-        # doesn't count the record being deleted.
-        _sync_client_script(self.source_doctype, exclude_config=self.name)
+        # The record still exists when on_trash fires, so exclude it from the
+        # "any active configs still reference this doctype?" check.
+        for dt in self._referenced_doctypes():
+            _sync_client_script(dt, exclude_config=self.name)
 
     # ------------------------------------------------------------------
     # Validation helpers
@@ -708,14 +718,30 @@ def _sync_client_script(source_doctype: str, exclude_config: str | None = None) 
     if not source_doctype:
         return
 
-    filters: dict = {"source_doctype": source_doctype, "is_active": 1}
-    if exclude_config:
-        filters["name"] = ["!=", exclude_config]
-
-    if frappe.db.exists("Ledger Config", filters):
+    if _referenced_by_active_config(source_doctype, exclude_config):
         _upsert_client_script(source_doctype)
     else:
         _delete_client_script(source_doctype)
+
+
+def _referenced_by_active_config(doctype: str, exclude_config: str | None = None) -> bool:
+    """True if any active config references doctype as a Type 1 source, a Type 2
+    carrier, or a Type 2 feeder source."""
+    T2 = "Track balance from transactions"
+    src = {"source_doctype": doctype, "is_active": 1}
+    carrier = {"balance_carrier_doctype": doctype, "is_active": 1, "ledger_type": T2}
+    if exclude_config:
+        src["name"] = ["!=", exclude_config]
+        carrier["name"] = ["!=", exclude_config]
+    if frappe.db.exists("Ledger Config", src) or frappe.db.exists("Ledger Config", carrier):
+        return True
+    rows = frappe.db.sql(
+        """SELECT 1 FROM `tabLedger Source` ls JOIN `tabLedger Config` lc ON lc.name = ls.parent
+           WHERE ls.source_doctype=%s AND ls.is_active=1 AND lc.is_active=1
+             AND lc.ledger_type=%s AND lc.name != %s LIMIT 1""",
+        (doctype, T2, exclude_config or "__none__"),
+    )
+    return bool(rows)
 
 
 def _upsert_client_script(source_doctype: str) -> None:
@@ -779,12 +805,12 @@ def _build_client_script(source_doctype: str) -> str:
         "\n"
         "                    if (configs.length === 1) {\n"
         "                        frm.add_custom_button(__('View Ledger'), function () {\n"
-        "                            _lgl_open(configs[0].config_name, frm.docname);\n"
+        "                            _lgl_open(configs[0].config_name, frm.docname, configs[0].scope);\n"
         "                        });\n"
         "                    } else {\n"
         "                        configs.forEach(function (cfg) {\n"
         "                            frm.add_custom_button(cfg.config_label, function () {\n"
-        "                                _lgl_open(cfg.config_name, frm.docname);\n"
+        "                                _lgl_open(cfg.config_name, frm.docname, cfg.scope);\n"
         "                            }, __('Ledger'));\n"
         "                        });\n"
         "                    }\n"
@@ -793,9 +819,10 @@ def _build_client_script(source_doctype: str) -> str:
         "        }\n"
         "    });\n"
         "\n"
-        "    function _lgl_open(cfg, rec) {\n"
+        "    function _lgl_open(cfg, rec, scope) {\n"
+        "        var key = scope === 'carrier' ? 'carrier_name' : 'source_name';\n"
         f"        var url = '{report_url}?ledger_config=' +\n"
-        "            encodeURIComponent(cfg) + '&source_name=' + encodeURIComponent(rec);\n"
+        "            encodeURIComponent(cfg) + '&' + key + '=' + encodeURIComponent(rec);\n"
         "        window.open(url, '_blank');\n"
         "    }\n"
         "})();\n"
