@@ -1,8 +1,7 @@
 # Custom Ledger
 
 [![Frappe v16](https://img.shields.io/badge/Frappe-v16-blue.svg)](https://frappeframework.com/)
-[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
-[![License: TBD](https://img.shields.io/badge/License-TBD-lightgrey.svg)](#license)
+[![Frappe v15](https://img.shields.io/badge/Frappe-v15-blue.svg)](https://frappeframework.com/)
 
 ### Configurable ledgers for any DocType — no code required
 
