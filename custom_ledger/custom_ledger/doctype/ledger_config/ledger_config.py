@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 
 import frappe
 from frappe import _
@@ -29,6 +29,15 @@ VALUE_MODE_CHILD = "Sum across child rows"
 # Default cap on number of dimensions per Ledger Config.
 DEFAULT_MAX_DIMENSIONS = 5
 
+# Structural fields that define a ledger's identity. Once a config is saved,
+# changing any of these would silently invalidate every Ledger Entry already
+# posted against it, so they are locked (see _guard_immutable_fields).
+LOCKED_FIELDS_COMMON = ("ledger_type",)
+LOCKED_FIELDS_TYPE_1 = ("source_doctype", "value_source_mode", "child_table_field", "tracked_field")
+LOCKED_FIELDS_TYPE_2 = ("balance_carrier_doctype", "balance_field")
+# Structural fields on each existing Transaction Source (Ledger Source) row.
+LOCKED_FIELDS_SOURCE_ROW = ("source_doctype", "source_field", "direction", "carrier_link_field")
+
 
 class LedgerConfig(Document):
     """Configuration for a custom ledger.
@@ -40,6 +49,7 @@ class LedgerConfig(Document):
     """
 
     def validate(self):
+        self._guard_immutable_fields()
         if self.ledger_type == "Track balance from transactions":
             self._validate_type_2()
         else:
@@ -81,6 +91,74 @@ class LedgerConfig(Document):
         # "any active configs still reference this doctype?" check.
         for dt in self._referenced_doctypes():
             _sync_client_script(dt, exclude_config=self.name)
+
+    # ------------------------------------------------------------------
+    # Immutability guard
+    # ------------------------------------------------------------------
+
+    def _guard_immutable_fields(self):
+        """Block edits to a ledger's structural identity fields after creation.
+
+        A newly created config is fully editable. Once it has been saved,
+        changing the fields that determine *what* the ledger tracks (source,
+        tracked/balance field, ledger type, feeder structure) would orphan or
+        misattribute every Ledger Entry already posted. We reject the save so
+        the user creates a new config instead of corrupting this one. Fields
+        that only affect presentation or future postings (name, narration,
+        dimensions, posting date/time, description, active flags) stay editable.
+        """
+        if self.is_new():
+            return
+        old = self.get_doc_before_save()
+        if not old:
+            return
+
+        locked = LOCKED_FIELDS_COMMON
+        if self.ledger_type == "Track balance from transactions":
+            locked += LOCKED_FIELDS_TYPE_2
+        else:
+            locked += LOCKED_FIELDS_TYPE_1
+
+        for field in locked:
+            old_value = old.get(field)
+            # Only lock fields that were actually set at creation; a blank field
+            # being filled in later is a completion, not a destructive change.
+            if old_value and old.get(field) != self.get(field):
+                self._throw_immutable(self.meta.get_label(field), old_value, self.get(field))
+
+        # Type 2 feeder rows: lock structural fields on rows that already exist,
+        # and block deletion of an existing feeder (it orphans its posted entries).
+        if self.ledger_type == "Track balance from transactions":
+            old_rows = {row.name: row for row in (old.sources or [])}
+            new_rows = {row.name: row for row in (self.sources or []) if row.name}
+            for name, old_row in old_rows.items():
+                new_row = new_rows.get(name)
+                if new_row is None:
+                    frappe.throw(
+                        _(
+                            "Cannot remove Transaction Source '{0}' from a saved ledger: it "
+                            "already has posted entries. Deactivate the row instead, or create "
+                            "a new Ledger Config."
+                        ).format(old_row.source_doctype)
+                    )
+                for field in LOCKED_FIELDS_SOURCE_ROW:
+                    if old_row.get(field) and old_row.get(field) != new_row.get(field):
+                        self._throw_immutable(
+                            _("Transaction Source {0}").format(old_row.source_doctype),
+                            old_row.get(field),
+                            new_row.get(field),
+                        )
+
+    @staticmethod
+    def _throw_immutable(label, old_value, new_value):
+        frappe.throw(
+            _(
+                "'{0}' cannot be changed after a ledger is created (was '{1}', tried '{2}'). "
+                "This field defines the ledger and changing it would invalidate existing "
+                "entries. Create a new Ledger Config instead."
+            ).format(label, old_value, new_value),
+            title=_("Ledger field is locked"),
+        )
 
     # ------------------------------------------------------------------
     # Validation helpers

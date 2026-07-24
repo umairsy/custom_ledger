@@ -1,0 +1,99 @@
+name: CI
+
+# Runs on every push and pull request. Two independent jobs:
+#   * semgrep — Frappe's security/correctness rules (the marketplace gate).
+#   * tests   — the app's unit tests on a real Frappe bench.
+#
+# FRAPPE_BRANCH is the one line that differs per app branch:
+#   main / version-16  -> version-16   (Frappe v16, Python 3.14)
+#   version-15         -> version-15   (Frappe v15, Python 3.11)
+# Keep it in sync with pyproject.toml's requires-python when porting.
+
+on:
+  push:
+    branches: [main, version-15, version-16]
+  pull_request:
+
+env:
+  FRAPPE_BRANCH: version-16
+
+jobs:
+  semgrep:
+    name: Semgrep (Frappe rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install semgrep
+        run: pip install semgrep
+      - name: Clone Frappe semgrep rules
+        run: git clone --depth 1 https://github.com/frappe/semgrep-rules.git frappe-semgrep-rules
+      - name: Run semgrep
+        run: semgrep --config ./frappe-semgrep-rules/rules custom_ledger --error
+
+  tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --password=root"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+        with:
+          path: apps/custom_ledger
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libmysqlclient-dev
+          npm install -g yarn
+          pip install frappe-bench
+
+      - name: Init bench
+        run: |
+          bench init --skip-redis-config-generation --frappe-branch "$FRAPPE_BRANCH" ~/frappe-bench
+          # Point the fresh bench at the checked-out app.
+          cp -r "$GITHUB_WORKSPACE/apps/custom_ledger" ~/frappe-bench/apps/custom_ledger
+
+      - name: Create site and install app
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench set-config -g root_password root
+          bench set-mariadb-host 127.0.0.1
+          bench new-site test_site \
+            --mariadb-root-password root \
+            --admin-password admin \
+            --no-mariadb-socket
+          bench --site test_site set-config developer_mode 1
+          bench --site test_site set-config allow_tests true
+          bench --site test_site install-app custom_ledger
+          bench --site test_site migrate
+
+      - name: Run tests
+        working-directory: /home/runner/frappe-bench
+        run: bench --site test_site run-tests --app custom_ledger
