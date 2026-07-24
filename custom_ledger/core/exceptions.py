@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Custom Ledger engine exceptions.
 
 A dedicated exception so the engines can deliberately *block* a source-doc

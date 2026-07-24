@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Ledger reposting and integrity checks.
 
 Back-dated entries only corrupt one thing, and only for one ledger type:

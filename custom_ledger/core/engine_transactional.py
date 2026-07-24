@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Transactional engine for Type 2 Ledger Configs ("Track balance from transactions").
 
 Hooks into every doc's ``on_submit`` and ``on_cancel`` events via the wildcard
