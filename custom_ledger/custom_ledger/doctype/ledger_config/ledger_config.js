@@ -252,12 +252,7 @@ custom_ledger.fetch_carrier_fields = function (frm) {
 
             if (options_list.length === 0) {
                 frappe.show_alert({
-                    message: __(
-                        "No suitable field found on {0}. Add a read-only Currency, " +
-                        "Float, or Int field on {0} via Customize Form, then re-pick " +
-                        "the carrier.",
-                        [frm.doc.balance_carrier_doctype]
-                    ),
+                    message: __("No suitable field found on {0}. Add a read-only Currency, Float, or Int field on {0} via Customize Form, then re-pick the carrier.", [frm.doc.balance_carrier_doctype]),
                     indicator: "orange",
                 });
             }

@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Backfill balance and narration on existing Ledger Entries.
 
 Runs once after the narration field is added to Ledger Entry and the balance

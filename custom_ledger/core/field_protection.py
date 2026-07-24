@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Prevents deletion of Custom Fields referenced by active Ledger Configs.
 
 Registered as a ``before_delete`` hook on the ``Custom Field`` DocType.
