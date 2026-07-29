@@ -12,6 +12,16 @@
 
 ---
 
+## Demo
+
+![Custom Ledger walkthrough — both ledger types, the report, and the dashboard](docs/media/custom-ledger-demo.gif)
+
+A 80-second walkthrough of both ledger types with their report and dashboard: **Type 1** (a gym member's weight tracked field-by-field) and **Type 2** (a customer's credit balance fed by transactions), including the running-balance report and the analytics dashboard.
+
+▶️ **Full-quality video:** [docs/media/custom-ledger-demo.mp4](docs/media/custom-ledger-demo.mp4)
+
+---
+
 ## Why Custom Ledger
 
 ERPNext's Stock Ledger and General Ledger are powerful, but they're hardcoded. If you want the same kind of dated, auditable, running-balance history for anything else — a member's weight, a customer's prepaid credit, a project's budget burn — you normally have to build a Frappe app from scratch.
