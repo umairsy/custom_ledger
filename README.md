@@ -47,6 +47,11 @@ Custom Ledger closes that gap. Define a **Ledger Config**, and it automatically 
 
 ## How it works
 
+<video src="**path/to/video.mp4**" width="640" height="360" controls></video>
+
+
+
+
 1. **Create a Ledger Config.** Pick a ledger type, the DocType(s) to watch, the numeric field, the posting date, and any dimensions.
 2. **Custom Ledger captures changes.** For *Track changes to a field*, updating the tracked field creates an entry. For *Track balance from transactions*, submitting a feeder creates an entry and updates the carrier's balance.
 3. **Read the ledger.** Open the Custom Ledger report or the dashboard, or click **View Ledger** on any record.
