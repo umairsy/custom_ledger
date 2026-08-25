@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Self-healing balance recompute for Type 2 ('Track balance from transactions') ledgers.
 
 Called via the ``on_load`` doc event hook for every document. Fast-exits in

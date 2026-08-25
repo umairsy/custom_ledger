@@ -2,12 +2,23 @@
 
 [![Frappe v16](https://img.shields.io/badge/Frappe-v16-blue.svg)](https://frappeframework.com/)
 [![Frappe v15](https://img.shields.io/badge/Frappe-v15-blue.svg)](https://frappeframework.com/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 ### Configurable ledgers for any DocType — no code required
 
 *Turn changes on any Frappe/ERPNext DocType into a proper ledger, with running balances, an opening/closing report, and an analytics dashboard. You describe what to track in a Ledger Config; Custom Ledger generates everything else.*
 
-[Quick Start](#quick-start) • [User Manual](USER_MANUAL.md) • [Ledger Types](#ledger-types) • [How it works](#how-it-works)
+[Quick Start](#quick-start) • [User Manual](USER_MANUAL.md) • [Ledger Types](#ledger-types) • [How it works](#how-it-works) • [Support](#support) • [Privacy Policy](#privacy-policy) • [Terms of Use](#terms-of-use)
+
+---
+
+## Demo
+
+![Custom Ledger walkthrough — both ledger types, the report, and the dashboard](docs/media/custom-ledger-demo.gif)
+
+A 80-second walkthrough of both ledger types with their report and dashboard: **Type 1** (a gym member's weight tracked field-by-field) and **Type 2** (a customer's credit balance fed by transactions), including the running-balance report and the analytics dashboard.
+
+▶️ **Full-quality video:** [docs/media/custom-ledger-demo.mp4](docs/media/custom-ledger-demo.mp4)
 
 ---
 
@@ -44,8 +55,9 @@ For step-by-step setup of both ledger types, see the [User Manual](USER_MANUAL.m
 
 ## Requirements
 
-- Frappe Framework v16
-- Python 3.14
+- Frappe Framework v15 or v16
+- Python 3.10–3.14
+- ERPNext is optional — only needed for the "create Journal Entry / Stock Entry" actions from a Ledger Entry.
 
 ## Installation
 
@@ -89,12 +101,13 @@ Maintain a running balance from transactions:
 
 ## Compatibility
 
-| Frappe version | Status | Branch |
-| --- | --- | --- |
-| v16 | Targeted (primary) | `version-16` (this branch) |
-| v15 | Maintained | [`main`](https://github.com/umairsy/custom_ledger/tree/main) |
+| Branch | Frappe | Python | Role |
+| --- | --- | --- | --- |
+| [`main`](https://github.com/umairsy/custom_ledger/tree/main) | v15 & v16 | 3.10–3.14 | Primary development line — installs on both versions. |
+| [`version-15`](https://github.com/umairsy/custom_ledger/tree/version-15) | v15 | 3.10–3.14 | Frappe v15 release line. |
+| [`version-16`](https://github.com/umairsy/custom_ledger/tree/version-16) | v16 | 3.10–3.14 | Frappe v16 release line. |
 
-See [docs/VERSIONING.md](docs/VERSIONING.md) for the branch model and how changes are kept in sync across versions.
+The application code is identical across branches — Custom Ledger uses only stable core Frappe APIs that behave the same on v15 and v16. See [docs/VERSIONING.md](docs/VERSIONING.md) for the branch model and how changes are kept in sync.
 
 ## Development
 
@@ -105,11 +118,77 @@ bench --site <your-site> set-config allow_tests true
 bench --site <your-site> run-tests --app custom_ledger
 ```
 
-Every pull request runs unit tests and a Semgrep scan against Frappe's security rules.
+Every push and pull request runs the unit tests and a Semgrep scan against
+[Frappe's official security rules](https://github.com/frappe/semgrep-rules)
+(see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)). To run the scan locally:
+
+```bash
+git clone --depth 1 https://github.com/frappe/semgrep-rules.git
+semgrep --config ./semgrep-rules/rules custom_ledger
+```
+
+## Support
+
+Custom Ledger is a free, open-source, community-supported project. There is no
+commercial support contract and no service-level agreement.
+
+- **Questions, bugs, and feature requests:** please open an issue on GitHub at
+  [github.com/umairsy/custom_ledger/issues](https://github.com/umairsy/custom_ledger/issues).
+  Maintainers respond on a best-effort basis.
+- **Using it in production?** Because this is a volunteer-maintained open-source
+  app with no guaranteed support, we **recommend forking the repository** if you
+  depend on it for a product or business. A fork lets you pin a known-good
+  version, apply your own fixes and customisations, and control your own upgrade
+  schedule independently of upstream changes. Contributions back via pull request
+  are always welcome, but never required.
+
+## Privacy Policy
+
+Custom Ledger is a self-hosted Frappe application. It is designed with privacy by
+default:
+
+- **No data leaves your site.** All ledger configs, entries, reports, and
+  dashboards are stored entirely within your own Frappe/ERPNext site database.
+- **No telemetry or tracking.** The app does not collect analytics, send usage
+  data, phone home, or transmit any information to the maintainers or any third
+  party.
+- **No external services.** Custom Ledger makes no outbound network calls. It
+  operates only on the DocTypes and records inside your own installation.
+- **You are the data controller.** Any personal or business data processed by the
+  ledgers you configure is governed entirely by your organisation's own privacy
+  practices and your site's access controls. The maintainers never receive,
+  store, or have access to your data.
+
+Because the maintainers never receive any user data, there is nothing for us to
+retain, share, or delete on your behalf.
+
+## Terms of Use
+
+Custom Ledger is licensed under the **GNU General Public License v3.0 (or later)**;
+your use, modification, and distribution of the software are governed by that
+license (see [LICENSE](LICENSE)).
+
+- **Provided "as is".** The software is provided without warranty of any kind,
+  express or implied, including but not limited to the warranties of
+  merchantability, fitness for a particular purpose, and non-infringement.
+- **No liability.** In no event shall the authors or copyright holders be liable
+  for any claim, damages, or other liability arising from the use of the software.
+- **Your responsibility.** You are responsible for testing the app against your
+  own data and workflows before relying on it, for maintaining backups, and for
+  complying with all laws applicable to the data you process with it.
+- **Financial data disclaimer.** Custom Ledger helps you record and report
+  balances, but it is not a certified accounting system. Verify any figures used
+  for accounting, tax, or regulatory purposes independently.
+
+By installing or using Custom Ledger you agree to these terms and to the terms of
+the GPL-3.0 license.
 
 ## License
 
-To be finalized before the first stable release.
+Custom Ledger is free software, released under the
+[GNU General Public License v3.0 (or later)](LICENSE). You may redistribute and/or
+modify it under the terms of that license. It is distributed in the hope that it
+will be useful, but WITHOUT ANY WARRANTY; see the LICENSE file for full details.
 
 ## Contributors
 
