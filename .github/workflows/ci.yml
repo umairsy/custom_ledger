@@ -86,7 +86,9 @@ jobs:
           cp -r "$GITHUB_WORKSPACE/apps/custom_ledger" ~/frappe-bench/apps/custom_ledger
           cd ~/frappe-bench
           ./env/bin/pip install --quiet -e apps/custom_ledger
-          echo "custom_ledger" >> sites/apps.txt
+          # Leading newline: bench's apps.txt "frappe" line has no trailing \n,
+          # so a bare echo would produce "frappecustom_ledger" on one line.
+          printf '\ncustom_ledger\n' >> sites/apps.txt
 
       - name: Create site and install app
         working-directory: /home/runner/frappe-bench
