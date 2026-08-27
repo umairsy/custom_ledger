@@ -132,7 +132,7 @@ class TestLedgerEngine(unittest.TestCase):
         config = _make_config("Engine With Dims")
         config.append("dimensions", {"dimension_fieldname": "category"})
         config.save(ignore_permissions=True)
-        source = _make_source_doc(tracked_value=42.0, category="Item")
+        source = _make_source_doc(tracked_value=42.0, category="User")
 
         entries = frappe.get_all(
             "Ledger Entry",
@@ -140,7 +140,7 @@ class TestLedgerEngine(unittest.TestCase):
             fields=["dim_1", "dim_1_doctype"],
         )
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0].dim_1, "Item")
+        self.assertEqual(entries[0].dim_1, "User")
         self.assertEqual(entries[0].dim_1_doctype, "DocType")
 
     def test_child_table_sum_mode(self):

@@ -4,10 +4,11 @@ name: CI
 #   * semgrep — Frappe's security/correctness rules (the marketplace gate).
 #   * tests   — the app's unit tests on a real Frappe bench.
 #
-# FRAPPE_BRANCH is the one line that differs per app branch:
-#   main / version-16  -> version-16   (Frappe v16, Python 3.14)
-#   version-15         -> version-15   (Frappe v15, Python 3.11)
-# Keep it in sync with pyproject.toml's requires-python when porting.
+# FRAPPE_BRANCH and PYTHON_VERSION are what differ per app branch. Frappe pins an
+# exact Python per major, so the CI Python MUST match the Frappe branch:
+#   main / version-16  -> FRAPPE_BRANCH version-16, PYTHON_VERSION 3.14 (Frappe v16 requires 3.14)
+#   version-15         -> FRAPPE_BRANCH version-15, PYTHON_VERSION 3.11 (Frappe v15 allows 3.10-3.14)
+# Keep both in sync with pyproject.toml's requires-python when porting.
 
 on:
   push:
@@ -16,6 +17,7 @@ on:
 
 env:
   FRAPPE_BRANCH: version-16
+  PYTHON_VERSION: "3.14"
 
 jobs:
   semgrep:
@@ -25,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Install semgrep
         run: pip install semgrep
       - name: Clone Frappe semgrep rules
@@ -60,7 +62,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
