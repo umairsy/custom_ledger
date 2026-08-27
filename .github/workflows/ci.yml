@@ -77,11 +77,16 @@ jobs:
           npm install -g yarn
           pip install frappe-bench
 
-      - name: Init bench
+      - name: Init bench and install the app into it
         run: |
-          bench init --skip-redis-config-generation --frappe-branch "$FRAPPE_BRANCH" ~/frappe-bench
-          # Point the fresh bench at the checked-out app.
+          bench init --skip-redis-config-generation --skip-assets --frappe-branch "$FRAPPE_BRANCH" ~/frappe-bench
+          # Copy the checked-out app in, then register it as an editable package
+          # and in apps.txt so `bench install-app` can import it. A plain copy
+          # leaves the module un-importable (ModuleNotFoundError: custom_ledger).
           cp -r "$GITHUB_WORKSPACE/apps/custom_ledger" ~/frappe-bench/apps/custom_ledger
+          cd ~/frappe-bench
+          ./env/bin/pip install --quiet -e apps/custom_ledger
+          echo "custom_ledger" >> sites/apps.txt
 
       - name: Create site and install app
         working-directory: /home/runner/frappe-bench
