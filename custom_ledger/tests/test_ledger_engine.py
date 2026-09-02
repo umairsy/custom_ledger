@@ -46,7 +46,11 @@ def _make_source_doc(**fields):
     return doc
 
 
-def _entries_for(config_name, source_name):
+def _entries_for(ledger_name, source_name):
+    # Ledger Config autonames as "LDG-CFG-#####", so its docname differs from the
+    # human ledger_name. Ledger Entry.ledger_config stores the docname, so resolve
+    # the ledger_name to it before filtering.
+    config_name = frappe.db.get_value("Ledger Config", {"ledger_name": ledger_name}, "name")
     return frappe.get_all(
         "Ledger Entry",
         filters={"ledger_config": config_name, "source_name": source_name, "docstatus": 1},
@@ -136,7 +140,7 @@ class TestLedgerEngine(unittest.TestCase):
 
         entries = frappe.get_all(
             "Ledger Entry",
-            filters={"ledger_config": "Engine With Dims", "source_name": source.name},
+            filters={"ledger_config": config.name, "source_name": source.name},
             fields=["dim_1", "dim_1_doctype"],
         )
         self.assertEqual(len(entries), 1)
