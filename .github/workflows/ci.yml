@@ -16,9 +16,9 @@ on:
   pull_request:
 
 env:
-  FRAPPE_BRANCH: version-16
-  PYTHON_VERSION: "3.14"
-  NODE_VERSION: "24"
+  FRAPPE_BRANCH: version-15
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
 
 jobs:
   semgrep:
