@@ -4,11 +4,11 @@ name: CI
 #   * semgrep — Frappe's security/correctness rules (the marketplace gate).
 #   * tests   — the app's unit tests on a real Frappe bench.
 #
-# FRAPPE_BRANCH and PYTHON_VERSION differ per app branch. Frappe pins an exact
-# Python per major, so the CI Python MUST match the Frappe branch:
-#   main / version-16  -> version-16, Python 3.14 (Frappe v16 requires 3.14)
-#   version-15         -> version-15, Python 3.11 (Frappe v15 allows 3.10-3.14)
-# Keep both in sync with pyproject.toml when porting.
+# FRAPPE_BRANCH and PYTHON_VERSION are what differ per app branch. Frappe pins an
+# exact Python per major, so the CI Python MUST match the Frappe branch:
+#   main / version-16  -> FRAPPE_BRANCH version-16, PYTHON_VERSION 3.14 (Frappe v16 requires 3.14)
+#   version-15         -> FRAPPE_BRANCH version-15, PYTHON_VERSION 3.11 (Frappe v15 allows 3.10-3.14)
+# Keep both in sync with pyproject.toml's requires-python when porting.
 
 on:
   push:
@@ -77,25 +77,37 @@ jobs:
           npm install -g yarn
           pip install frappe-bench
 
-      - name: Init bench
+      - name: Init bench and install the app into it
         run: |
-          bench init --skip-redis-config-generation --frappe-branch "$FRAPPE_BRANCH" ~/frappe-bench
-          # Point the fresh bench at the checked-out app.
+          bench init --skip-redis-config-generation --skip-assets --frappe-branch "$FRAPPE_BRANCH" ~/frappe-bench
+          # Copy the checked-out app in, then register it as an editable package
+          # and in apps.txt so `bench install-app` can import it. A plain copy
+          # leaves the module un-importable (ModuleNotFoundError: custom_ledger).
           cp -r "$GITHUB_WORKSPACE/apps/custom_ledger" ~/frappe-bench/apps/custom_ledger
+          cd ~/frappe-bench
+          ./env/bin/pip install --quiet -e apps/custom_ledger
+          # Leading newline: bench's apps.txt "frappe" line has no trailing \n,
+          # so a bare echo would produce "frappecustom_ledger" on one line.
+          printf '\ncustom_ledger\n' >> sites/apps.txt
 
       - name: Create site and install app
         working-directory: /home/runner/frappe-bench
         run: |
           bench set-config -g root_password root
           bench set-mariadb-host 127.0.0.1
+          # Point the bench at the CI Redis service (init used
+          # --skip-redis-config-generation, so these are otherwise unset).
+          bench set-config -g redis_cache "redis://localhost:6379"
+          bench set-config -g redis_queue "redis://localhost:6379"
+          bench set-config -g redis_socketio "redis://localhost:6379"
           bench new-site test_site \
             --mariadb-root-password root \
             --admin-password admin \
             --no-mariadb-socket
           bench --site test_site set-config developer_mode 1
           bench --site test_site set-config allow_tests true
+          # install-app runs the app's migrations, so no separate `bench migrate`.
           bench --site test_site install-app custom_ledger
-          bench --site test_site migrate
 
       - name: Run tests
         working-directory: /home/runner/frappe-bench
