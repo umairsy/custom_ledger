@@ -84,9 +84,11 @@ class TestCustomLedgerReport(unittest.TestCase):
     def test_empty_when_no_entries(self):
         config = _make_config()
         columns, data = execute({"ledger_config": config.name})
-        # Columns still present; data empty.
+        # Columns still present; the report always emits opening/closing summary
+        # rows, so "empty" means no data rows between them.
         self.assertTrue(columns)
-        self.assertEqual(data, [])
+        data_rows = [r for r in data if r.get("_row_type") == "data"]
+        self.assertEqual(data_rows, [])
 
     # ------------------------------------------------------------------
     # Flat view (no source filter, group_by_source unchecked)
@@ -100,9 +102,10 @@ class TestCustomLedgerReport(unittest.TestCase):
         b.save(ignore_permissions=True)
 
         columns, data = execute({"ledger_config": config.name})
-        self.assertEqual(len(data), 3)
-        # Rows are real entries (no opening/closing markers).
-        self.assertTrue(all(r.get("source_name") in (a.name, b.name) for r in data))
+        # Data rows are the real entries, flanked by opening/closing summary rows.
+        data_rows = [r for r in data if r.get("_row_type") == "data"]
+        self.assertEqual(len(data_rows), 3)
+        self.assertTrue(all(r.get("source_name") in (a.name, b.name) for r in data_rows))
 
     # ------------------------------------------------------------------
     # Source-filtered view
@@ -185,13 +188,15 @@ class TestCustomLedgerReport(unittest.TestCase):
         frappe.db.commit()
 
         columns, data = execute({"ledger_config": config.name})
-        self.assertEqual(data, [])
+        # The cancelled entry must not appear as a data row (summary rows remain).
+        data_rows = [r for r in data if r.get("_row_type") == "data"]
+        self.assertEqual(data_rows, [])
 
     # ------------------------------------------------------------------
     # Group-by-source
     # ------------------------------------------------------------------
 
-    def test_group_by_source_produces_blocks_per_source(self):
+    def test_group_by_source_returns_grouped_data_rows(self):
         config = _make_config()
         a = _make_source(100.0)
         b = _make_source(200.0)
@@ -200,15 +205,13 @@ class TestCustomLedgerReport(unittest.TestCase):
             {"ledger_config": config.name, "group_by_source": 1}
         )
 
-        # Two sources, each with: opening + 1 entry + closing = 3 rows.
-        self.assertEqual(len(data), 6)
-
-        # First and last row in each block are summary rows.
-        labels = [r["source_name"] for r in data]
-        opening_count = sum(1 for l in labels if "Opening Balance" in l)
-        closing_count = sum(1 for l in labels if "Closing Balance" in l)
-        self.assertEqual(opening_count, 2)
-        self.assertEqual(closing_count, 2)
+        # execute() emits one overall opening + one closing summary row around
+        # the per-source data rows; visual grouping by source is applied
+        # client-side, so the server payload stays flat.
+        data_rows = [r for r in data if r.get("_row_type") == "data"]
+        self.assertEqual({r["source_name"] for r in data_rows}, {a.name, b.name})
+        self.assertEqual(sum(1 for r in data if r.get("_row_type") == "opening"), 1)
+        self.assertEqual(sum(1 for r in data if r.get("_row_type") == "closing"), 1)
 
     # ------------------------------------------------------------------
     # Filter validation
@@ -237,7 +240,7 @@ class TestCustomLedgerReport(unittest.TestCase):
             "posting_date",
             "posting_time",
             "source_name",
-            "value",
+            "opening",
             "delta",
             "balance",
         ):
