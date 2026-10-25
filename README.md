@@ -1,7 +1,7 @@
 # Custom Ledger
 
-[![Frappe v15 | v16](https://img.shields.io/badge/Frappe-v15%20%7C%20v16-blue.svg)](https://frappeframework.com/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Frappe v16](https://img.shields.io/badge/Frappe-v16-blue.svg)](https://frappeframework.com/)
+[![Frappe v15](https://img.shields.io/badge/Frappe-v15-blue.svg)](https://frappeframework.com/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 ### Configurable ledgers for any DocType — no code required
@@ -46,6 +46,11 @@ Custom Ledger closes that gap. Define a **Ledger Config**, and it automatically 
 | **Track balance from transactions** | Multiple feeder DocTypes that add to or deduct from a balance held on a separate carrier DocType. | A customer's credit balance, fed by Credit Purchases and Invoices. |
 
 ## How it works
+
+<video src="**path/to/video.mp4**" width="640" height="360" controls></video>
+
+
+
 
 1. **Create a Ledger Config.** Pick a ledger type, the DocType(s) to watch, the numeric field, the posting date, and any dimensions.
 2. **Custom Ledger captures changes.** For *Track changes to a field*, updating the tracked field creates an entry. For *Track balance from transactions*, submitting a feeder creates an entry and updates the carrier's balance.
