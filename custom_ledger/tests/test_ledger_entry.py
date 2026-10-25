@@ -142,12 +142,14 @@ class TestLedgerEntry(unittest.TestCase):
         self.assertEqual(entry.posting_datetime, expected)
 
     def test_defaults_posting_time_to_midnight_if_missing(self):
-        # Posting_time is reqd in the JSON schema, but the controller defaults it
-        # to "00:00:00" if missing. Bypass schema validation by injecting at low level.
+        # The controller defaults a missing posting_time to "00:00:00". Exercise
+        # _compose_posting_datetime() directly rather than via insert(): on Frappe
+        # v15 the framework pre-fills an empty reqd Time field with the current
+        # time during insert(), which would preempt the fallback.
         entry = frappe.new_doc("Ledger Entry")
         entry.update(_base_entry(self.config.name, self.source.name))
         entry.posting_time = None  # Force controller fallback
-        entry.insert()
+        entry._compose_posting_datetime()
         self.assertEqual(str(entry.posting_time), "00:00:00")
         self.assertEqual(entry.posting_datetime.hour, 0)
         self.assertEqual(entry.posting_datetime.minute, 0)

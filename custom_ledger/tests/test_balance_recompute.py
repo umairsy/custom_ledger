@@ -60,8 +60,12 @@ class TestRecomputeOnLoadFastExits(unittest.TestCase):
 
     def test_skips_when_no_type_2_config_for_carrier(self):
         """No healing attempt when the doctype is not a carrier."""
-        with patch("frappe.local") as mock_local:
-            mock_local.request = object()  # simulate web request
+        # Set frappe.local.request directly rather than patch("frappe.local"):
+        # mock.patch introspects the werkzeug LocalProxy (iscoroutinefunction),
+        # which raises under Python 3.14.
+        original = getattr(frappe.local, "request", _sentinel := object())
+        frappe.local.request = object()  # simulate web request
+        try:
             with patch(
                 "custom_ledger.core.balance_recompute._get_type_2_configs_for_carrier",
                 return_value=[],
@@ -69,6 +73,12 @@ class TestRecomputeOnLoadFastExits(unittest.TestCase):
                 with patch("custom_ledger.core.balance_recompute._heal_balance") as mock_heal:
                     recompute_on_load(_FakeDoc("NotACarrier", "X-001"))
                     mock_heal.assert_not_called()
+        finally:
+            if original is _sentinel:
+                if hasattr(frappe.local, "request"):
+                    del frappe.local.request
+            else:
+                frappe.local.request = original
 
 
 class TestHealBalance(unittest.TestCase):
