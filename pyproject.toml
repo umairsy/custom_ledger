@@ -22,6 +22,11 @@ build-backend = "flit_core.buildapi"
 [tool.flit.module]
 name = "custom_ledger"
 
+# Frappe Cloud marketplace reads this to match the app to a compatible Frappe
+# version at publish/deploy time. This is the Frappe v16 release line.
+[tool.bench.frappe-dependencies]
+frappe = ">=16.0.0,<17.0.0"
+
 # These dependencies are only required for development and CI;
 # they are not installed on Frappe Cloud production benches.
 [project.optional-dependencies]
