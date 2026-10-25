@@ -64,3 +64,14 @@ after_migrate = [
     "custom_ledger.core.cache_utils.clear_engine_cache",
     "custom_ledger.core.engine_transactional.invalidate_feeder_cache",
 ]
+
+# Scheduled jobs
+# --------------
+# Opt-in, anonymous usage telemetry. The job is a no-op unless the site admin
+# sets custom_ledger_telemetry=1 (and a URL) in site config. See
+# custom_ledger/core/telemetry.py and the README Privacy Policy.
+scheduler_events = {
+    "weekly": [
+        "custom_ledger.core.telemetry.send_telemetry",
+    ],
+}

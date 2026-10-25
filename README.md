@@ -154,20 +154,36 @@ commercial support contract and no service-level agreement.
 Custom Ledger is a self-hosted Frappe application. It is designed with privacy by
 default:
 
-- **No data leaves your site.** All ledger configs, entries, reports, and
-  dashboards are stored entirely within your own Frappe/ERPNext site database.
-- **No telemetry or tracking.** The app does not collect analytics, send usage
-  data, phone home, or transmit any information to the maintainers or any third
-  party.
-- **No external services.** Custom Ledger makes no outbound network calls. It
-  operates only on the DocTypes and records inside your own installation.
+- **Your data stays on your site.** All ledger configs, entries, reports, and
+  dashboards live entirely within your own Frappe/ERPNext site database. The app
+  never sends your ledger contents, personal data, site name, or site URL
+  anywhere.
+- **No tracking by default.** Out of the box the app makes no outbound network
+  calls and transmits nothing to the maintainers or any third party.
 - **You are the data controller.** Any personal or business data processed by the
   ledgers you configure is governed entirely by your organisation's own privacy
-  practices and your site's access controls. The maintainers never receive,
-  store, or have access to your data.
+  practices and your site's access controls.
 
-Because the maintainers never receive any user data, there is nothing for us to
-retain, share, or delete on your behalf.
+### Optional, opt-in usage telemetry
+
+The app includes an **opt-in** telemetry feature that is **disabled by default**.
+It sends *nothing* unless a site administrator explicitly turns it on:
+
+```bash
+bench --site <your-site> set-config custom_ledger_telemetry 1
+bench --site <your-site> set-config custom_ledger_telemetry_url "https://<endpoint>"
+```
+
+When enabled, a weekly job sends a small, anonymous JSON payload to the endpoint
+*you* configure:
+
+- an **opaque one-way hash** of the site name (counts distinct installs; cannot be
+  reversed to identify the site),
+- the Custom Ledger and Frappe version numbers,
+- plain counts of Ledger Configs, active Ledger Configs, and Ledger Entries.
+
+It never transmits the site name or URL, user identities, or any ledger contents.
+To turn it off again, set `custom_ledger_telemetry` to `0` or remove the keys.
 
 ## Terms of Use
 
