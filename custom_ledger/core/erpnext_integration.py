@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """ERPNext integration — thin, optional.
 
 ERPNext is an optional dependency: Custom Ledger must install and run without

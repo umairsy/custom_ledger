@@ -1,11 +1,15 @@
 [project]
 name = "custom_ledger"
 authors = [
-    { name = "Custom Ledger Contributors", email = "custom_ledger@example.com"}
+    { name = "Custom Ledger Contributors" }
 ]
 description = "Configurable custom ledgers for Frappe — define your own ledgers driven by field changes on any DocType."
 requires-python = ">=3.10,<3.15"
 readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 dynamic = ["version"]
 dependencies = [
     # "frappe~=16.0.0" # Installed and managed by bench.
@@ -17,6 +21,11 @@ build-backend = "flit_core.buildapi"
 
 [tool.flit.module]
 name = "custom_ledger"
+
+# Frappe Cloud marketplace reads this to match the app to a compatible Frappe
+# version at publish/deploy time. This is the Frappe v15 release line.
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<16.0.0"
 
 # These dependencies are only required for development and CI;
 # they are not installed on Frappe Cloud production benches.

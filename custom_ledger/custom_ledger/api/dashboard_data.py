@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Dashboard data API — single endpoint returns all six chart datasets.
 
 All charts for a given Ledger Config are computed from one frappe.get_all

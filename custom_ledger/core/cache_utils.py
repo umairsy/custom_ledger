@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Cache utilities for the Custom Ledger engine.
 
 The engine relies on Redis to cache "which Ledger Configs are active for this

@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Value Snapshot engine (user-facing name: "Track changes to a field").
 
 Handles Ledger Configs whose ``ledger_type`` is "Track changes to a field":

@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 
 import unittest
 from datetime import date
@@ -100,6 +100,9 @@ def _make_config(name, direction="ADD", is_active=1):
             "balance_carrier_doctype": CARRIER_DOCTYPE,
             "balance_field": "balance",
             "is_active": is_active,
+            # Carriers start at 0, and DEDUCT tests intentionally drive the
+            # balance negative, so permit it (no test exercises the guard here).
+            "allow_negative_balance": 1,
             "sources": [
                 {
                     "source_doctype": FEEDER_DOCTYPE,
