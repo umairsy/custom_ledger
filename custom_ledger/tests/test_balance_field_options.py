@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Tests for the balance_display_fields branch of get_field_options."""
 
 import unittest
@@ -8,7 +8,10 @@ import frappe
 
 from custom_ledger.custom_ledger.doctype.ledger_config.ledger_config import get_field_options
 
-CARRIER_DOCTYPE = "Custom Ledger Test Carrier"
+# Unique to this module: test_engine_transactional defines a different
+# "Custom Ledger Test Carrier" schema, and custom DocTypes persist across the
+# suite, so a shared name makes the read-only assertions depend on run order.
+CARRIER_DOCTYPE = "Custom Ledger Test Balance Fields Carrier"
 
 
 def _ensure_carrier_fixture():

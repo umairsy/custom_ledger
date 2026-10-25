@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 
 import unittest
 from datetime import datetime
@@ -451,6 +451,61 @@ class TestLedgerConfig(unittest.TestCase):
         doc.append("dimensions", {"dimension_fieldname": "notes"})
         with self.assertRaises(frappe.ValidationError):
             doc.insert()
+
+    # ------------------------------------------------------------------
+    # Immutability guard — structural fields are locked after creation
+    # ------------------------------------------------------------------
+
+    def test_locks_tracked_field_after_creation(self):
+        doc = frappe.get_doc(_base_config("Test Lock Tracked"))
+        doc.insert()
+        doc.tracked_field = "tracked_int"
+        with self.assertRaises(frappe.ValidationError):
+            doc.save()
+
+    def test_locks_source_doctype_after_creation(self):
+        doc = frappe.get_doc(_base_config("Test Lock Source"))
+        doc.insert()
+        doc.source_doctype = "User"
+        with self.assertRaises(frappe.ValidationError):
+            doc.save()
+
+    def test_locks_ledger_type_after_creation(self):
+        doc = frappe.get_doc(_base_config("Test Lock Type"))
+        doc.insert()
+        doc.ledger_type = "Track balance from transactions"
+        with self.assertRaises(frappe.ValidationError):
+            doc.save()
+
+    def test_locks_value_source_mode_after_creation(self):
+        doc = frappe.get_doc(_base_config("Test Lock Mode"))
+        doc.insert()
+        doc.value_source_mode = "Sum across child rows"
+        doc.child_table_field = "lines"
+        doc.tracked_field = "weight"
+        with self.assertRaises(frappe.ValidationError):
+            doc.save()
+
+    def test_allows_editing_narration_after_creation(self):
+        """Non-structural fields stay editable on a saved config."""
+        doc = frappe.get_doc(_base_config("Test Edit Narration"))
+        doc.insert()
+        doc.narration_field = "notes"
+        doc.save()  # must not raise
+        self.assertEqual(doc.narration_field, "notes")
+
+    def test_allows_adding_dimension_after_creation(self):
+        doc = frappe.get_doc(_base_config("Test Edit Dimension"))
+        doc.insert()
+        doc.append("dimensions", {"dimension_fieldname": "category"})
+        doc.save()  # must not raise
+        self.assertEqual(doc.dimensions[0].link_doctype, "DocType")
+
+    def test_creation_is_unrestricted(self):
+        """The guard must never fire during the initial insert."""
+        doc = frappe.get_doc(_base_config("Test Free Create"))
+        doc.insert()
+        self.assertTrue(doc.name)
 
     # ------------------------------------------------------------------
     # Whitelisted API

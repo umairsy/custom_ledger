@@ -2,8 +2,8 @@ app_name = "custom_ledger"
 app_title = "Custom Ledger"
 app_publisher = "Custom Ledger Contributors"
 app_description = "Configurable custom ledgers for Frappe — define your own ledgers driven by field changes on any DocType."
-app_email = "custom_ledger@example.com"
-app_license = "TBD"
+app_email = "https://github.com/umairsy/custom_ledger/issues"
+app_license = "GPL-3.0-or-later"
 
 # Apps screen (v16 "iPhone-style" desktop) and app switcher.
 # Routes to the Custom Ledger workspace. On v15 this is ignored harmlessly; the
@@ -64,3 +64,14 @@ after_migrate = [
     "custom_ledger.core.cache_utils.clear_engine_cache",
     "custom_ledger.core.engine_transactional.invalidate_feeder_cache",
 ]
+
+# Scheduled jobs
+# --------------
+# Opt-in, anonymous usage telemetry. The job is a no-op unless the site admin
+# sets custom_ledger_telemetry=1 (and a URL) in site config. See
+# custom_ledger/core/telemetry.py and the README Privacy Policy.
+scheduler_events = {
+    "weekly": [
+        "custom_ledger.core.telemetry.send_telemetry",
+    ],
+}

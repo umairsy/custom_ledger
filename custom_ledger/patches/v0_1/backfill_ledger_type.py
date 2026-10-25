@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Custom Ledger Contributors
-# License: TBD. See license.txt
+# License: GNU General Public License v3. See license.txt
 """Backfill ``ledger_type`` on existing Ledger Configs.
 
 Runs once after PR #6 introduces the ``ledger_type`` field. For every existing
